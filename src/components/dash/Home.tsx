@@ -2,13 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight02Icon, ArrowUp02Icon, Brain02Icon, Call02Icon, Camera01Icon, CheckmarkCircle02Icon, Fire03Icon, Message01Icon, Mic01Icon, Notebook01Icon, PlayIcon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
 import Amy from '../Amy';
-import { art, Icon, SUBJECT_ART, SUBJECT_COLOR } from '../ui';
-import { useRegion } from '../../region';
+import { Icon } from '../ui';
+import { Folder, MY_COURSES } from './Courses';
 import { useTheme } from '../../theme';
 import SoftAurora from '../../bits/SoftAurora';
 import type { View } from '../../pages/Dashboard';
 import CountUp from '../../bits/CountUp';
-import SpringCheck from '../../bits/SpringCheck';
+import { MonthEndPrompt, TodayPlan, useNextExam } from './Planner';
+import { longDate, relative, shortDate, useCalendar, useProfile, useToday } from '../../store';
 
 const rise = (i: number) => ({
   initial: { opacity: 0, y: 20, filter: 'blur(8px)' },
@@ -19,17 +20,6 @@ const rise = (i: number) => ({
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-}
-
-function Ring({ value, size = 64, stroke = 6, color, delay = 0.3 }: { value: number; size?: number; stroke?: number; color: string; delay?: number }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90 shrink-0" aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--card-2)" strokeWidth={stroke} />
-      <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c * (1 - value / 100) }} transition={{ duration: 1.5, ease: [0.23, 1, 0.32, 1], delay }} />
-    </svg>
-  );
 }
 
 // Points along the dashed arc (a quadratic curve), evenly spaced in time like a real throw.
@@ -69,17 +59,6 @@ function LessonArt() {
   );
 }
 
-const SUBJECTS = [
-  { name: 'Physics', pct: 62, note: 'Motion' },
-  { name: 'Maths', pct: 48, note: 'Linear equations' },
-  { name: 'Chemistry', pct: 35, note: 'Atoms and molecules' },
-  { name: 'Biology', pct: 71, note: 'Unit of life' }
-];
-const PLAN = [
-  { label: 'Finish "Speed and velocity"', done: true },
-  { label: 'Revise 6 questions from Tuesday', done: false },
-  { label: 'Chemistry paper from Ms Kapoor', done: false }
-];
 const RECENT = [
   { icon: Message01Icon, title: 'Why does ice float on water?', sub: 'Chemistry · understood after 2 checks', when: 'Today' },
   { icon: CheckmarkCircle02Icon, title: 'Passed: Velocity, 7 of 7', sub: 'Physics · lesson 5', when: 'Yesterday' },
@@ -88,8 +67,18 @@ const RECENT = [
 
 export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onGo: (v: View) => void }) {
   const [q, setQ] = useState('');
-  const { region } = useRegion();
   const { theme } = useTheme();
+  const { profile } = useProfile();
+  const today = useToday();
+  const { on } = useCalendar();
+  const exam = useNextExam();
+  const todayLeft = on(today).filter(i => !i.done && i.kind !== 'exam' && i.kind !== 'event').length;
+  const name = profile.name.trim().split(/\s+/)[0] || 'there';
+  const line = exam
+    ? `${exam.title} is ${relative(today, exam.date)}. One lesson today keeps you on track.`
+    : todayLeft
+      ? `You have ${todayLeft} ${todayLeft === 1 ? 'thing' : 'things'} planned for today.`
+      : `It's ${longDate(today)}. What do you want to learn today?`;
   const quick = [
     { icon: Camera01Icon, label: 'Snap a question', go: () => onAsk('') },
     { icon: Call02Icon, label: 'Call Amy', go: () => onAsk('') },
@@ -118,10 +107,10 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
             <Amy size={104} follow interactive />
           </motion.div>
           <motion.h1 {...rise(1)} className="mt-5 text-4xl sm:text-6xl font-semibold tracking-[-0.04em]">
-            {greeting()}, <span className="serif amy-gradient-text pr-1">Riya</span>
+            {greeting()}, <span className="serif amy-gradient-text pr-1">{name}</span>
           </motion.h1>
           <motion.p {...rise(2)} className="mt-3 text-muted text-base sm:text-lg">
-            Physics test in 2 days. One lesson today keeps you on track.
+            {line}
           </motion.p>
 
           <motion.form {...rise(3)} onSubmit={submit} className="mt-8 w-full max-w-2xl">
@@ -151,8 +140,12 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
           </motion.div>
         </section>
 
+        <div className="mt-10">
+          <MonthEndPrompt onPlan={() => onGo('calendar')} />
+        </div>
+
         {/* 2. Continue */}
-        <motion.section {...rise(5)} className="mt-12 sm:mt-16">
+        <motion.section {...rise(5)} className="mt-6 sm:mt-8">
           <h2 className="text-sm font-medium text-muted mb-3 px-1">Pick up where you left off</h2>
           <div className="card p-3 grid gap-3 md:grid-cols-[1.25fr_1fr]">
             <div className="p-4 sm:p-6 flex flex-col">
@@ -225,63 +218,52 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
             </div>
           </motion.button>
 
-          <motion.button {...rise(7)} onClick={() => onGo('practice')} className="card p-6 text-left group hover:border-[var(--line-2)] transition-colors flex flex-col items-start">
+          <motion.button {...rise(7)} onClick={() => onGo('calendar')} className="card p-6 text-left group hover:border-[var(--line-2)] transition-colors flex flex-col items-start">
             <div className="flex items-center gap-2 text-sm text-muted">
-              <Icon icon={Calendar03Icon} size={18} className="text-[var(--color-physics)]" /> Next test
+              <Icon icon={Calendar03Icon} size={18} className="text-[var(--notyet)]" /> Next test
             </div>
-            <div className="mt-2 text-5xl font-semibold tracking-[-0.04em]">
-              Fri<span className="serif text-2xl ml-1.5">in 2 days</span>
-            </div>
-            <p className="mt-3 text-sm text-muted">Physics unit test · Motion, chapters 7–8.</p>
-            <div className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm font-medium">
-              Try a mock paper <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
-            </div>
+            {exam ? (
+              <>
+                <div className="mt-2 text-5xl font-semibold tracking-[-0.04em]">
+                  {new Date(exam.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short' })}
+                  <span className="serif text-2xl ml-1.5">{relative(today, exam.date)}</span>
+                </div>
+                <p className="mt-3 text-sm text-muted">{exam.title} · {shortDate(exam.date)}</p>
+                <div className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm font-medium">
+                  See your calendar <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mt-2 text-2xl font-semibold tracking-tight">No test added</div>
+                <p className="mt-3 text-sm text-muted">Add your test dates or upload your school calendar, and Amy plans around them.</p>
+                <div className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm font-medium">
+                  Add a test date <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
+                </div>
+              </>
+            )}
           </motion.button>
         </section>
 
         {/* 4. Subjects */}
         <motion.section {...rise(8)} className="mt-14">
           <div className="flex items-baseline justify-between mb-3 px-1">
-            <h2 className="text-sm font-medium text-muted">Your subjects</h2>
+            <h2 className="text-sm font-medium text-muted">Your course folders</h2>
             <button onClick={() => onGo('courses')} className="text-sm text-muted hover:text-[var(--fg)] transition-colors">
               All courses
             </button>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {SUBJECTS.map((s, i) => (
-              <motion.button key={s.name} whileHover={{ y: -6 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }} onClick={() => onGo('courses')} className="group card overflow-hidden text-left min-w-0 hover:border-[var(--line-2)]">
-                <div className="relative aspect-[16/10] overflow-hidden">
-                  <img src={art(SUBJECT_ART[s.name])} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-2.5 left-3 text-[15px] font-semibold text-white">{s.name === 'Maths' ? region.math : s.name}</div>
-                </div>
-                <div className="flex items-center gap-3 p-3.5">
-                  <div className="relative grid place-items-center">
-                    <Ring value={s.pct} size={44} stroke={5} color={SUBJECT_COLOR[s.name]} delay={0.5 + i * 0.1} />
-                    <span className="absolute text-[11px] font-medium tabular-nums">{s.pct}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted">Now learning</div>
-                    <div className="text-sm font-medium truncate">{s.note}</div>
-                  </div>
-                </div>
-              </motion.button>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-8 pt-4 lg:grid-cols-4">
+            {MY_COURSES.slice(0, 4).map((c, i) => (
+              <Folder key={c.title} course={c} index={i} compact onOpen={() => onGo('courses')} />
             ))}
           </div>
         </motion.section>
 
         {/* 5. Plan and recent */}
-        <section className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <motion.div {...rise(9)} className="card p-6 min-w-0">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-medium">Today's plan</h2>
-              <span className="text-sm text-muted">about 45 min</span>
-            </div>
-            <div className="mt-5 flex flex-col gap-4">
-              {PLAN.map(p => (
-                <SpringCheck key={p.label} label={p.label} defaultChecked={p.done} color="var(--fg)" fillColor="#ff8a3d" checkColor="#2a1406" fontSize={15} boxSize={22} boxRadius={7} />
-              ))}
-            </div>
+        <section className="mt-4 grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+          <motion.div {...rise(9)} className="min-w-0">
+            <TodayPlan onOpenCalendar={() => onGo('calendar')} />
           </motion.div>
 
           <motion.div {...rise(10)} className="card p-6 min-w-0">

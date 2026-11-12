@@ -36,14 +36,17 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
 /** A photo from public/art. */
 export const art = (name: string) => `${import.meta.env.BASE_URL}art/${name}.webp`;
 
-export const SUBJECT_ART: Record<string, string> = { Physics: 'physics', Maths: 'maths', Chemistry: 'science', Biology: 'biology', English: 'reading' };
+export const SUBJECT_ART: Record<string, string> = { Physics: 'physics', Maths: 'maths', Chemistry: 'science', Biology: 'biology', English: 'reading', Economics: 'world', French: 'reading', 'Computer Science': 'coding' };
 
 export const SUBJECT_COLOR: Record<string, string> = {
   Physics: 'var(--color-physics)',
   Maths: 'var(--color-maths)',
   Chemistry: 'var(--color-chem)',
   Biology: 'var(--color-bio)',
-  English: 'var(--color-english)'
+  English: 'var(--color-english)',
+  Economics: 'var(--color-chem)',
+  French: 'var(--color-english)',
+  'Computer Science': 'var(--color-physics)'
 };
 
 export function SubjectDot({ subject }: { subject: string }) {
