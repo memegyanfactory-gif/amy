@@ -23,6 +23,7 @@ import ChatDemo from '../components/ChatDemo';
 import { art, Icon, Logo, ThemeToggle } from '../components/ui';
 import { useTheme } from '../theme';
 import SoftAurora from '../bits/SoftAurora';
+import { Memory, People } from '../components/LandingMore';
 import { CheckDemo, Faq, MiniGraph, NotesToCourse, Spaced, Tile, TypedAsk, Wave } from '../components/LandingBits';
 import { go } from '../router';
 import { REGIONS, stagePhoto, stageQuestions, useRegion, type Region } from '../region';
@@ -101,48 +102,107 @@ const LINKS: [string, string][] = [
   ['#pricing', 'Pricing']
 ];
 
+/**
+ * The top bar. Clear over the hero, then it gathers into a floating glass pill.
+ * It tucks away while you scroll down to read and comes back as soon as you scroll up.
+ */
 function Nav() {
   const { scrollY } = useScroll();
-  const border = useTransform(scrollY, [0, 60], ['rgba(0,0,0,0)', 'var(--line)']);
+  const [solid, setSolid] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const last = useRef(0);
+
+  useMotionValueEvent(scrollY, 'change', y => {
+    setSolid(y > 24);
+    const down = y > last.current;
+    if (Math.abs(y - last.current) > 6) setHidden(down && y > 520 && !open);
+    last.current = y;
+  });
+
+  // Which section is on screen, for the active link.
+  useEffect(() => {
+    const els = LINKS.map(([h]) => document.querySelector(h)).filter(Boolean) as Element[];
+    const io = new IntersectionObserver(entries => entries.forEach(e => { const id = `#${e.target.id}`; if (e.isIntersecting) setActive(id); else setActive(a => (a === id ? null : a)); }), { rootMargin: '-45% 0px -50% 0px' });
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.documentElement.style.overflow = '';
+    };
+  }, [open]);
+
   return (
-    <motion.header style={{ borderColor: border }} className="fixed inset-x-0 top-0 z-50 border-b bg-[var(--bg)]/80 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-      <nav className={`${wrap} flex h-16 items-center gap-4`} aria-label="Main">
-        <Logo />
-        <div className="hidden lg:flex items-center gap-1 text-sm text-muted ml-4">
-          {LINKS.map(([href, label]) => (
-            <a key={href} href={href} className="rounded-lg px-3 py-2 hover:text-[var(--fg)] hover:bg-[var(--card-2)] transition-colors">
-              {label}
+    <>
+      <motion.header animate={{ y: hidden ? -110 : 0 }} transition={{ duration: 0.35, ease: EASE }} className="fixed inset-x-0 top-0 z-50 px-3 pt-[max(12px,env(safe-area-inset-top))] sm:px-5">
+        <motion.nav
+          aria-label="Main"
+          layout
+          transition={{ duration: 0.45, ease: EASE }}
+          className={`mx-auto flex h-14 items-center gap-3 rounded-full pl-4 pr-2 transition-[background-color,border-color,box-shadow,max-width] duration-500 ${solid ? 'max-w-5xl border border-[var(--line-2)] bg-[var(--bg)]/70 shadow-[0_18px_50px_-24px_rgba(0,0,0,.45)] backdrop-blur-xl' : 'max-w-6xl border border-[var(--line)] bg-[var(--bg)]/45 backdrop-blur-md'}`}
+        >
+          <a href="#/" aria-label="Amy home" className="flex shrink-0 items-center gap-2 rounded-full bg-[#fffaf0] py-1 pl-1 pr-3.5 shadow-[0_6px_20px_-10px_rgba(0,0,0,.45)] ring-1 ring-black/5 transition-transform hover:scale-[1.03]">
+            <span className="grid size-8 place-items-center overflow-hidden rounded-full bg-[#fff1dc]">
+              <Amy size={32} glow={false} float={false} />
+            </span>
+            <span className="text-[17px] font-semibold tracking-tight text-[#0a0a0b]">Amy</span>
+          </a>
+          <div className="mx-auto hidden items-center lg:flex" onMouseLeave={() => setHover(null)}>
+            {LINKS.map(([href, label]) => {
+              const on = active === href;
+              return (
+                <a key={href} href={href} onMouseEnter={() => setHover(href)} className={`relative rounded-full px-3.5 py-2 text-sm transition-colors ${on ? 'text-[var(--fg)]' : 'text-fg2 hover:text-[var(--fg)]'}`}>
+                  {hover === href && <motion.span layoutId="nav-hover" className="absolute inset-0 rounded-full bg-[var(--card-2)]" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
+                  <span className="relative">{label}</span>
+                  {on && <motion.span layoutId="nav-active" className="absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-amy-500" />}
+                </a>
+              );
+            })}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+            <ThemeToggle className="!rounded-full !border-transparent" />
+            <a href="#/app" className="hidden rounded-full px-3.5 py-2 text-sm text-fg2 transition-colors hover:text-[var(--fg)] sm:inline-flex">
+              Sign in
             </a>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
-          <a href="#/app" className="hidden sm:inline-flex btn btn-ghost text-sm">
-            Sign in
-          </a>
-          <a href="#/app" className="btn btn-primary text-sm">
-            Start free
-          </a>
-          <button onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label="Menu" className="lg:hidden grid size-10 place-items-center rounded-lg border hairline">
-            <Icon icon={open ? Cancel01Icon : Menu01Icon} size={18} />
-          </button>
-        </div>
-      </nav>
+            <a href="#/app" className="group inline-flex h-10 items-center gap-1.5 rounded-full bg-[var(--invert)] pl-4 pr-3 text-sm font-medium text-[var(--on-invert)] transition-transform active:scale-95">
+              Start free
+              <span className="grid size-6 place-items-center rounded-full bg-gradient-to-br from-amy-200 to-amy-500 text-[#2a1406] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:rotate-[-45deg]">
+                <Icon icon={ArrowRight02Icon} size={14} stroke={2.2} />
+              </span>
+            </a>
+            <button onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'} className="grid size-10 place-items-center rounded-full lg:hidden">
+              <Icon icon={open ? Cancel01Icon : Menu01Icon} size={19} />
+            </button>
+          </div>
+        </motion.nav>
+      </motion.header>
+
+      {/* phone menu: the whole screen, big links */}
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="lg:hidden overflow-hidden border-t hairline">
-            <div className={`${wrap} py-3 flex flex-col`}>
-              {LINKS.map(([href, label]) => (
-                <a key={href} href={href} onClick={() => setOpen(false)} className="rounded-lg px-2 py-3 text-[15px]">
+          <motion.div className="fixed inset-0 z-40 flex flex-col bg-[var(--bg)]/95 px-6 pb-8 pt-24 backdrop-blur-xl lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div aria-hidden className="absolute left-1/2 top-0 h-80 w-[600px] -translate-x-1/2 rounded-full glow-amy opacity-50 blur-3xl" />
+            <nav className="relative flex flex-col" aria-label="Menu">
+              {LINKS.map(([href, label], i) => (
+                <motion.a key={href} href={href} onClick={() => setOpen(false)} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.05, duration: 0.4, ease: EASE }} className="flex items-center justify-between border-b hairline py-4 text-3xl font-semibold tracking-tight">
                   {label}
-                </a>
+                  <Icon icon={ArrowRight02Icon} size={22} className="text-muted" />
+                </motion.a>
               ))}
-            </div>
+            </nav>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }} className="relative mt-auto flex flex-col gap-3">
+              <a href="#/app" onClick={() => setOpen(false)} className="btn !min-h-12 !rounded-full font-semibold text-[#2a1406] bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500">Start learning free</a>
+              <a href="#/app" onClick={() => setOpen(false)} className="btn btn-ghost !min-h-12 !rounded-full">Sign in</a>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.header>
+    </>
   );
 }
 
@@ -315,7 +375,7 @@ function Hero() {
     <div aria-hidden className="absolute inset-0">
       <div className="absolute left-1/2 top-[-380px] h-[640px] w-[1100px] -translate-x-1/2 rounded-full glow-amy blur-3xl opacity-40" />
       <div className={`absolute inset-x-0 top-[-44%] h-[120%] [mask-image:linear-gradient(#000_48%,transparent_80%)] ${theme === 'dark' ? 'blur-[42px] scale-y-[1.6]' : ''}`}>
-        <SoftAurora color1={theme === 'dark' ? '#ff9a3d' : '#ffe2a6'} color2={theme === 'dark' ? '#ff5a2a' : '#ff8a3d'} speed={0.4} spectrum={0} colorSpeed={0.2} brightness={theme === 'dark' ? 1.25 : 1} bandSpread={theme === 'dark' ? 2.2 : 1.25} noiseFrequency={1.8} mouseInfluence={0.2} clickPulse={false} lightMode={theme !== 'dark'} opacity={theme === 'dark' ? 0.9 : 0.7} />
+        <SoftAurora color1={theme === 'dark' ? '#ff9a3d' : '#ffe2a6'} color2={theme === 'dark' ? '#ff5a2a' : '#ff8a3d'} speed={0.4} spectrum={0} colorSpeed={0.2} brightness={theme === 'dark' ? 0.95 : 1} bandSpread={theme === 'dark' ? 2.2 : 1.25} noiseFrequency={1.8} mouseInfluence={0.2} clickPulse={false} lightMode={theme !== 'dark'} opacity={theme === 'dark' ? 0.55 : 0.7} />
       </div>
     </div>
   );
@@ -472,9 +532,11 @@ function Ages() {
           <div aria-hidden className="absolute -inset-6 rounded-[40px] glow-amy blur-3xl opacity-40" />
           <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-[var(--line-2)] bg-[var(--card-2)] shadow-[0_50px_100px_-50px_rgba(0,0,0,.7)]">
             <AnimatePresence initial={false}>
-              <motion.img key={a.img} src={art(a.img)} alt={`A ${a.tag} student studying with Amy`} style={{ objectPosition: a.pos }} initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.9, ease: EASE }} className="absolute inset-0 h-full w-full object-cover" />
+              <motion.div key={a.img} initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.9, ease: EASE }} className="absolute inset-0">
+                <img src={art(a.img)} alt={`A ${a.tag} student studying with Amy`} className="h-full w-full object-cover" style={{ objectPosition: a.pos }} />
+              </motion.div>
             </AnimatePresence>
-            <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
 
             <AnimatePresence mode="wait">
               <motion.span key={a.tag} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute left-4 top-4 rounded-full bg-black/55 px-3.5 py-1.5 text-sm font-medium text-white backdrop-blur-md">
@@ -483,7 +545,7 @@ function Ages() {
             </AnimatePresence>
 
             {/* The conversation, sitting on the desk rather than on the face */}
-            <div className="absolute inset-x-4 bottom-4 sm:inset-x-5 sm:bottom-5">
+            <div className="pointer-events-none absolute inset-x-4 bottom-4 sm:inset-x-5 sm:bottom-5">
               <AnimatePresence mode="wait">
                 <motion.div key={a.q} className="flex flex-col gap-2.5" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
                   <motion.div initial={{ opacity: 0, y: 14, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.25, type: 'spring', stiffness: 260, damping: 22 }} className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-white px-4 py-2.5 text-[15px] font-medium text-[#141416] shadow-lg">
@@ -707,7 +769,7 @@ function Subjects() {
           {row.map((s, i) => (
             <button key={i} onClick={() => ask(s.q)} aria-hidden={i >= SUBJECTS.length} tabIndex={i >= SUBJECTS.length ? -1 : 0} className="group relative w-[220px] sm:w-[250px] shrink-0 overflow-hidden rounded-2xl text-left shadow-[0_24px_50px_-28px_rgba(0,0,0,.5)] transition-transform duration-500 ease-[var(--ease-soft)] hover:-translate-y-2">
               <img src={art(s.img)} alt="" loading="lazy" className="aspect-[3/4] w-full object-cover transition-transform duration-700 ease-[var(--ease-soft)] group-hover:scale-110" />
-              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-4 pt-12 text-white">
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-4 pt-12 text-white">
                 <span className="block text-xl font-semibold tracking-tight">{s.title}</span>
                 <span className="block text-sm opacity-80">{s.who}</span>
                 <span className="mt-2 grid grid-rows-[0fr] transition-[grid-template-rows] duration-500 group-hover:grid-rows-[1fr]">
@@ -954,10 +1016,50 @@ function Pricing() {
 
 function Questions() {
   const { region } = useRegion();
+  const [q, setQ] = useState('');
   return (
-    <section id="faq" className="border-t hairline bg-[var(--bg-2)] scroll-mt-16">
-      <div className={`${wrap} py-24 sm:py-32 grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
-        <Head eyebrow="Hands up" title={<>Before you <span className="serif">start.</span></>} />
+    <section id="faq" className="relative overflow-hidden border-t hairline bg-[var(--bg-2)] scroll-mt-16">
+      <div aria-hidden className="absolute -left-40 top-1/3 size-[520px] rounded-full glow-amy opacity-30 blur-3xl" />
+      <div className={`${wrap} relative grid gap-12 py-24 sm:py-32 lg:grid-cols-[1fr_1.4fr] lg:gap-16`}>
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <Head eyebrow="Hands up" title={<>Before you <span className="serif">start.</span></>}>
+            The questions students, parents and teachers ask us most.
+          </Head>
+
+          <motion.div {...reveal(0.15)} className="relative mt-10 overflow-hidden rounded-3xl border hairline bg-[var(--card)] p-6 shadow-[0_30px_70px_-40px_rgba(0,0,0,.5)]">
+            <div aria-hidden className="absolute -right-16 -top-16 size-48 rounded-full glow-amy opacity-60" />
+            <div className="relative flex items-center gap-4">
+              <Amy size={64} mood="happy" />
+              <div>
+                <div className="text-lg font-semibold tracking-tight">Still curious?</div>
+                <p className="text-sm text-muted">Ask Amy herself. She answers in seconds.</p>
+              </div>
+            </div>
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                ask(q.trim() || 'What can you help me with?');
+              }}
+              className="relative mt-5 flex items-center gap-2 rounded-2xl border border-[var(--line-2)] bg-[var(--bg)] p-1.5 pl-4 focus-within:border-amy-400 transition-colors"
+            >
+              <label htmlFor="faq-ask" className="sr-only">Ask Amy a question</label>
+              <input id="faq-ask" value={q} onChange={e => setQ(e.target.value)} placeholder="Can Amy help with my exams?" autoComplete="off" className="h-10 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--muted)]" />
+              <button className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500 text-[#2a1406]" aria-label="Ask">
+                <Icon icon={ArrowRight02Icon} size={18} stroke={2.2} />
+              </button>
+            </form>
+            <div className="relative mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t hairline pt-4 text-sm">
+              <span className="text-muted">Or talk to a person:</span>
+              <a href="mailto:aryamgoyal18@gmail.com" className="inline-flex items-center gap-1.5 font-medium hover:text-amy-500 transition-colors">
+                <Icon icon={Mail01Icon} size={16} /> Email us
+              </a>
+              <a href="https://amy-tutor.com/guide" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium hover:text-amy-500 transition-colors">
+                How to use Amy <Icon icon={ArrowRight02Icon} size={14} className="-rotate-45" />
+              </a>
+            </div>
+          </motion.div>
+        </div>
+
         <motion.div {...reveal(0.1)}>
           <Faq items={faq(region)} />
         </motion.div>
@@ -996,8 +1098,8 @@ function FinalCta() {
             <a href="#/app" className="btn !min-h-12 !px-6 text-base font-semibold text-[#2a1406] bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500 hover:brightness-105">
               Start learning free <Icon icon={ArrowRight02Icon} size={18} stroke={2} />
             </a>
-            <a href="#/app" className="btn btn-ghost !min-h-12 !px-6 text-base">
-              Try Amy now
+            <a href="mailto:aryamgoyal18@gmail.com?subject=Amy%20for%20our%20school" className="btn btn-ghost !min-h-12 !px-6 text-base">
+              <Icon icon={School01Icon} size={18} /> Amy for your school
             </a>
           </div>
         </div>
@@ -1007,40 +1109,75 @@ function FinalCta() {
 }
 
 function Footer() {
-  const { region } = useRegion();
-  const cols: [string, [string, string][]][] = [
-    ['Learn', [['How Amy teaches', '#how'], ['Subjects', '#subjects'], ['Curricula', '#curricula']]],
-    ['Plans', [['Pricing', '#pricing'], ['Amy+', '#amy-plus'], ['For schools', '#schools']]],
-    ['Amy', [['Meet Amy', '#/amy'], ['Questions', '#faq'], ['Sign in', '#/app']]]
+  const { region, setRegion } = useRegion();
+  const ref = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end end'] });
+  const wordY = useTransform(scrollYProgress, [0, 1], ['40%', '0%']);
+  const wordOpacity = useTransform(scrollYProgress, [0.3, 1], [0, 1]);
+
+  const cols: [string, [string, string, boolean?][]][] = [
+    ['Learn', [['How Amy teaches', '#how'], ['Subjects', '#subjects'], ['Curricula', '#curricula'], ['Try a lesson', '#/app']]],
+    ['Plans', [['Pricing', '#pricing'], ['Amy+', '#amy-plus'], ['For schools', '#schools'], ['Questions', '#faq']]],
+    ['Help', [['How to use Amy', 'https://amy-tutor.com/guide', true], ['Meet Amy', '#/amy'], ['Contact us', 'mailto:aryamgoyal18@gmail.com'], ['Sign in', '#/app']]]
   ];
+
   return (
-    <footer className="border-t hairline">
-      <div className={`${wrap} py-14 grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
-        <div>
-          <Logo />
-          <p className="mt-3 max-w-xs text-sm text-muted leading-relaxed">Learning through conversation, from {region.span}.</p>
-        </div>
-        {cols.map(([title, links]) => (
-          <div key={title}>
-            <div className="text-sm font-medium">{title}</div>
-            <ul className="mt-3 flex flex-col gap-2.5 text-sm text-muted">
-              {links.map(([l, href]) => (
-                <li key={l}>
-                  <a href={href} className="hover:text-[var(--fg)] transition-colors">
-                    {l}
-                  </a>
-                </li>
-              ))}
-            </ul>
+    <footer ref={ref} className="relative overflow-hidden border-t hairline bg-[var(--bg-2)]">
+      <div aria-hidden className="absolute bottom-0 left-1/2 h-[420px] w-[1100px] -translate-x-1/2 translate-y-1/2 rounded-full glow-amy opacity-40 blur-3xl" />
+
+      <div className={`${wrap} relative`}>
+        {/* links */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 py-14 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <div className="col-span-2 lg:col-span-1">
+            <Logo />
+            <p className="mt-4 max-w-xs leading-relaxed text-muted">Your AI tutor from {region.span}. One step at a time, with a check that it made sense.</p>
+            <label className="mt-6 inline-flex items-center gap-2 rounded-full border hairline bg-[var(--card)] py-1.5 pl-3.5 pr-2 text-sm">
+              <span className="text-muted">Studying in</span>
+              <select value={region.code} onChange={e => setRegion(e.target.value)} className="cursor-pointer rounded-full bg-transparent pr-1 font-medium outline-none" aria-label="Where you study">
+                {REGIONS.map(r => (
+                  <option key={r.code} value={r.code}>{r.name}</option>
+                ))}
+              </select>
+            </label>
           </div>
-        ))}
-      </div>
-      <div className="border-t hairline">
-        <div className={`${wrap} py-5 flex flex-wrap justify-between gap-2 text-xs text-muted pb-[max(20px,env(safe-area-inset-bottom))]`}>
+          {cols.map(([title, links]) => (
+            <div key={title}>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{title}</div>
+              <ul className="mt-4 flex flex-col gap-3">
+                {links.map(([l, href, ext]) => (
+                  <li key={l}>
+                    <a href={href} {...(ext ? { target: '_blank', rel: 'noreferrer' } : {})} className="group inline-flex items-center gap-1 text-[15px] transition-colors hover:text-amy-500">
+                      <span className="relative">
+                        {l}
+                        <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-current transition-all duration-300 group-hover:w-full" />
+                      </span>
+                      {ext && <Icon icon={ArrowRight02Icon} size={13} className="-rotate-45 opacity-60" />}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* bottom bar */}
+        <div className="flex flex-col gap-4 border-t hairline py-6 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
           <span>© 2026 Amy. Learning through conversation.</span>
-          <span>Made for students who ask questions.</span>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <a href="https://amy-tutor.com/privacy" target="_blank" rel="noreferrer" className="transition-colors hover:text-[var(--fg)]">Privacy Policy</a>
+            <a href="https://amy-tutor.com/terms" target="_blank" rel="noreferrer" className="transition-colors hover:text-[var(--fg)]">Terms of Service</a>
+            <ThemeToggle className="!size-9 !rounded-full" />
+            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top" className="grid size-9 place-items-center rounded-full border hairline transition-colors hover:bg-[var(--card-2)] hover:text-[var(--fg)]">
+              <Icon icon={ArrowRight02Icon} size={16} className="-rotate-90" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* the name, huge, rising into view */}
+      <motion.div aria-hidden style={{ y: wordY, opacity: wordOpacity }} className="pointer-events-none relative -mt-4 select-none overflow-hidden pb-[max(8px,env(safe-area-inset-bottom))] text-center">
+        <span className="block bg-gradient-to-b from-amy-300 via-amy-500 to-transparent bg-clip-text text-[34vw] font-semibold leading-[0.78] tracking-[-0.08em] text-transparent sm:text-[28vw] lg:text-[22rem]">Amy</span>
+      </motion.div>
     </footer>
   );
 }
@@ -1054,12 +1191,14 @@ export default function Landing() {
         <Boards />
         <Ages />
         <Chalkboard />
+        <Memory />
         <Lesson />
         <Features />
         <Film />
         <Subjects />
         <Curricula />
         <Schools />
+        <People />
         <Pricing />
         <Questions />
         <FinalCta />
