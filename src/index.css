@@ -1,0 +1,241 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource/instrument-serif/400.css';
+@import '@fontsource/instrument-serif/400-italic.css';
+@import '@fontsource/caveat/600.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Amy: black or white, and one warm light. */
+@theme {
+  --font-sans: 'Geist Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+
+  --color-amy-50: #fff4d6;
+  --color-amy-200: #ffd06a;
+  --color-amy-400: #ffa048;
+  --color-amy-500: #ff8a3d;
+  --color-amy-600: #ff6b3d;
+
+  --color-physics: #60a5fa;
+  --color-maths: #a78bfa;
+  --color-chem: #fbbf24;
+  --color-bio: #34d399;
+  --color-english: #f472b6;
+
+  --ease-soft: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+:root {
+  --bg: #ffffff;
+  --bg-2: #fafafa;
+  --card: #ffffff;
+  --card-2: #f4f4f5;
+  --line: rgba(10, 10, 11, 0.08);
+  --line-2: rgba(10, 10, 11, 0.16);
+  --fg: #0a0a0b;
+  --fg-2: #3f3f46;
+  --muted: #71717a;
+  --invert: #0a0a0b;
+  --on-invert: #ffffff;
+  --right: #059669;
+  --notyet: #e11d48;
+  color-scheme: light;
+}
+.dark {
+  --bg: #08080a;
+  --bg-2: #0d0d10;
+  --card: #111114;
+  --card-2: #18181c;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --fg: #f5f5f4;
+  --fg-2: #d4d4d8;
+  --muted: #a1a1aa;
+  --invert: #ffffff;
+  --on-invert: #0a0a0b;
+  --right: #34d399;
+  --notyet: #fb7185;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--fg);
+    transition: background-color 0.4s var(--ease-soft), color 0.4s var(--ease-soft);
+  }
+  ::selection {
+    background: #ffa04866;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-amy-400);
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+}
+
+@utility card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+@utility hairline {
+  border-color: var(--line);
+}
+@utility text-muted {
+  color: var(--muted);
+}
+@utility text-fg2 {
+  color: var(--fg-2);
+}
+@utility serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 15px;
+  transition: transform 0.25s var(--ease-soft), background-color 0.25s, opacity 0.25s;
+  &:active {
+    transform: scale(0.97);
+  }
+}
+@utility btn-primary {
+  background: var(--invert);
+  color: var(--on-invert);
+  &:hover {
+    opacity: 0.88;
+  }
+}
+@utility btn-ghost {
+  border: 1px solid var(--line-2);
+  color: var(--fg);
+  &:hover {
+    background: var(--card-2);
+  }
+}
+@utility glow-amy {
+  background: radial-gradient(closest-side, rgba(255, 160, 72, 0.35), rgba(255, 107, 61, 0) 100%);
+}
+@utility amy-gradient-text {
+  background: linear-gradient(100deg, #ffd06a 0%, #ffa048 45%, #ff6b3d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Faint grid behind the hero, fading out towards the edges. */
+@utility grid-bg {
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+
+/* ---------- Landing: a warm classroom ---------- */
+
+.site {
+  --bg: #fffaf0;
+  --bg-2: #fbf1dc;
+  --card: #fffdf8;
+  --card-2: #f6ecd8;
+  --chalk: #f4f1e6;
+  background: var(--bg);
+}
+.dark .site {
+  --bg: #0b0d12;
+  --bg-2: #10131a;
+  --card: #151821;
+  --card-2: #1d212c;
+}
+
+@utility hand {
+  font-family: 'Caveat', 'Segoe Print', cursive;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+/* Ruled exercise-book paper. */
+@utility ruled {
+  background-image: linear-gradient(var(--line) 1px, transparent 1px);
+  background-size: 100% 32px;
+}
+/* The chalkboard: green slate, chalk dust, wooden frame. */
+@utility board {
+  position: relative;
+  color: #f4f1e6;
+  background:
+    radial-gradient(120% 80% at 20% 10%, rgba(255, 255, 255, 0.07), transparent 60%),
+    radial-gradient(90% 70% at 85% 90%, rgba(255, 255, 255, 0.05), transparent 60%),
+    linear-gradient(160deg, #245a45, #1a4334 60%, #163a2d);
+  border: 12px solid #b98552;
+  border-radius: 22px;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.25),
+    inset 0 0 80px rgba(0, 0, 0, 0.28),
+    0 2px 0 #8f6238,
+    0 40px 80px -40px rgba(0, 0, 0, 0.55);
+}
+@utility chalk-line {
+  border-color: rgba(244, 241, 230, 0.35);
+  border-style: dashed;
+}
+@utility sticky-note {
+  color: #2a1f10;
+  border-radius: 4px 4px 14px 4px;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.08),
+    0 18px 30px -14px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes marquee-x {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@utility marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 60s linear infinite;
+  &:hover {
+    animation-play-state: paused;
+  }
+}
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translateY(-14px) rotate(calc(var(--r, 0deg) + 6deg));
+  }
+}
+@utility drift {
+  animation: drift 7s ease-in-out infinite;
+}
