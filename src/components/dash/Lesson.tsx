@@ -582,8 +582,8 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
     if (!c || !liveDone) return;
     if (q === 'Explain this table') say({ text: [`This table is ${c.table.title.toLowerCase()}. It has ${c.table.rows.length} rows.`, ...(c.table.note ? [c.table.note] : [])], ask: awaiting ? c.parts[part].ask : undefined }, q);
   };
-  const boardEl = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={wide} pop={pop} onWide={() => setWide(w => !w)} onCollapse={() => setBoardOpen(false)} onAsk={askBoard} />;
-  const drawerBoard = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={false} pop={pop} onAsk={askBoard} />;
+  const boardEl = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={wide} pop={pop} onWide={() => setWide(w => !w)} onCollapse={() => setBoardOpen(false)} onAsk={askBoard} title={name} course={course.title} />;
+  const drawerBoard = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={false} pop={pop} onAsk={askBoard} title={name} course={course.title} />;
   const pct = Math.round((Math.min(done, all.length) / all.length) * 100);
   const right = boardOpen ? (wide ? 'minmax(0,1.4fr)' : '420px') : '56px';
   const cols = { '--cols-lg': `minmax(0,1fr) ${right}`, '--cols-xl': `${outlineOpen ? '280px' : '56px'} minmax(0,1fr) ${right}` } as React.CSSProperties;

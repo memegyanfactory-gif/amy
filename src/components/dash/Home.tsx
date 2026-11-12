@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
-import { ArrowRight02Icon, ArrowUp02Icon, Brain02Icon, Call02Icon, Camera01Icon, CheckmarkCircle02Icon, Fire03Icon, Message01Icon, Mic01Icon, Notebook01Icon, PlayIcon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
+import { motion, useReducedMotion } from 'motion/react';
+import { ArrowRight02Icon, Brain02Icon, CheckmarkCircle02Icon, Message01Icon, Mic01Icon, Notebook01Icon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
 import Amy from '../Amy';
 import { Icon } from '../ui';
 import { Folder, MY_COURSES } from './Courses';
@@ -8,9 +8,9 @@ import { Composer, SlidesToggle, type Attachment } from './Composer';
 import { useTheme } from '../../theme';
 import SoftAurora from '../../bits/SoftAurora';
 import type { View } from '../../pages/Dashboard';
-import CountUp from '../../bits/CountUp';
 import { MonthEndPrompt, TodayPlan, useNextExam } from './Planner';
-import { longDate, relative, shortDate, useCalendar, useProfile, useToday } from '../../store';
+import { SLATE, WOOD } from './BoardArt';
+import { longDate, relative, shortDate, useCalendar, useProfile, useProgress, useToday } from '../../store';
 
 const rise = (i: number) => ({
   initial: { opacity: 0, y: 20, filter: 'blur(8px)' },
@@ -23,79 +23,152 @@ function greeting() {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-// Points along the arc (a quadratic curve), evenly spaced in time like a real throw.
+// The ball's path as points evenly spaced in time, like a real throw: x moves steadily, y is a parabola.
 const ARC = (() => {
   const x: number[] = [];
   const y: number[] = [];
   for (let i = 0; i <= 24; i++) {
     const t = i / 24;
-    x.push(70 + 180 * t);
-    y.push((1 - t) ** 2 * 206 + 2 * t * (1 - t) * -60 + t ** 2 * 206 - 13);
+    x.push(64 + 172 * t);
+    y.push((1 - t) ** 2 * 196 + 2 * t * (1 - t) * -116 + t ** 2 * 196);
   }
   return { x, y };
 })();
 
-/** A ball thrown up: it slows, stops, comes back. Arrows show its speed shrinking to nothing at the top. */
-function LessonArt() {
-  const { theme } = useTheme();
-  const dark = theme === 'dark';
-  const sky = dark ? 'linear-gradient(170deg, #1d2a52 0%, #2a2350 45%, #3a2337 100%)' : 'linear-gradient(170deg, #dff0ff 0%, #ffe9d2 60%, #ffd7b5 100%)';
-  const ink = dark ? '#f5f1ea' : '#2a1f10';
-  // where the arrows sit along the way up, and how long each is
-  const marks = [2, 6, 10];
+const CHALK = '#f4f1e6';
+const CHALK_FONT = 'Caveat, "Segoe Print", cursive';
+
+/** A chalk arrow from (x, y), `len` long: up when negative, down when positive. */
+const chalkArrow = (x: number, y: number, len: number) => {
+  const back = len < 0 ? 5 : -5;
+  return `M${x} ${y} v${len} M${x - 4} ${y + len + back} L${x} ${y + len} L${x + 4} ${y + len + back}`;
+};
+
+/** Today's lesson as Amy draws it on the board: a ball thrown up slows to a stop, then speeds up on the way down. */
+function ChalkThrow() {
+  const reduce = useReducedMotion();
+  const up = [3, 7, 10];
+  const down = [14, 17, 21];
   return (
-    <div className="relative h-full min-h-[240px] overflow-hidden rounded-2xl" style={{ background: sky }}>
-      <div aria-hidden className="absolute -right-10 -top-10 size-40 rounded-full bg-amy-300/40 blur-2xl" />
-      <svg viewBox="0 0 320 240" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice" aria-hidden>
-        <defs>
-          <radialGradient id="ballg" cx="35%" cy="30%">
-            <stop offset="0" stopColor="#fff4d6" />
-            <stop offset=".5" stopColor="#ffa048" />
-            <stop offset="1" stopColor="#ff6b3d" />
-          </radialGradient>
-          <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0 0 L10 5 L0 10z" fill="#ff6b3d" />
-          </marker>
-        </defs>
-        {/* ground with grass ticks */}
-        <rect x="0" y="208" width="320" height="32" fill={dark ? '#1a1f2e' : '#f3d9b6'} />
-        <path d="M0 208 H320" stroke={ink} strokeOpacity=".25" strokeWidth="2" />
-        {Array.from({ length: 16 }, (_, i) => <path key={i} d={`M${10 + i * 20} 208 l3 -6 l3 6`} fill="none" stroke={dark ? '#4b6b52' : '#8fb27a'} strokeWidth="1.5" />)}
-        {/* height ruler */}
-        {[0, 1, 2, 3].map(i => (
-          <g key={i}>
-            <path d={`M290 ${208 - i * 40} h10`} stroke={ink} strokeOpacity=".35" />
-            <text x="286" y={212 - i * 40} textAnchor="end" fontSize="9" fill={ink} fillOpacity=".55">{i * 5} m</text>
-          </g>
-        ))}
-        {/* the path */}
-        <motion.path d="M70 206 Q160 -60 250 206" fill="none" stroke="#5b8def" strokeWidth="2.5" strokeDasharray="3 8" strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.6, delay: 0.4 }} />
-        {/* faded copies of the ball: a time-lapse */}
-        {[3, 7, 12, 17, 21].map((k, i) => (
-          <circle key={k} cx={ARC.x[k]} cy={ARC.y[k]} r="10" fill="url(#ballg)" opacity={0.18 + i * 0.03} />
-        ))}
-        {/* velocity arrows, shrinking on the way up */}
-        {marks.map((k, i) => {
-          const len = [30, 18, 8][i];
-          return (
-            <motion.path key={k} d={`M${ARC.x[k] - 16} ${ARC.y[k]} v${-len}`} stroke="#ff6b3d" strokeWidth="2.5" strokeLinecap="round" markerEnd="url(#arr)" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 + i * 0.25 }} />
-          );
-        })}
-        {/* the top */}
-        <motion.g initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.8 }}>
-          <rect x="125" y="14" width="70" height="22" rx="11" fill={dark ? 'rgba(255,255,255,.12)' : '#fff'} stroke="#ff8a3d" strokeOpacity=".6" />
-          <text x="160" y="29" textAnchor="middle" fontSize="12" fontWeight="600" fill={ink}>v = 0 here</text>
-          <path d="M160 36 v20" stroke="#ff8a3d" strokeWidth="1.5" strokeDasharray="2 3" />
-        </motion.g>
-        {/* the moving ball */}
-        <motion.g initial={{ x: ARC.x[0], y: ARC.y[0] }} animate={{ x: ARC.x, y: ARC.y }} transition={{ duration: 2.6, repeat: Infinity, ease: 'linear', repeatDelay: 0.6 }}>
-          <ellipse cx="0" cy="22" rx="10" ry="3" fill="#000" opacity=".12" />
-          <circle r="13" fill="url(#ballg)" />
-          <circle cx="-4" cy="-4" r="4" fill="#fff" opacity=".55" />
-        </motion.g>
-      </svg>
-      <span className="absolute bottom-3 left-3 rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">Thrown up at 20 m/s</span>
+    <div className="rounded-[9px] p-[6px] shadow-[0_2px_0_#8f6238]" style={{ background: WOOD }}>
+      <div className="relative h-full min-h-[240px] overflow-hidden rounded-[5px] shadow-[inset_0_0_0_2px_rgba(0,0,0,.25),inset_0_0_50px_rgba(0,0,0,.3)]" style={{ background: SLATE }}>
+        <svg viewBox="0 0 320 236" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label="A ball thrown up at 20 metres a second slows down, stops for an instant at the top, then speeds up on the way down.">
+          {/* the ground, hatched the way a physics teacher draws it */}
+          <path d="M10 197 C 70 194, 140 199, 210 196 S 290 195, 310 197" fill="none" stroke={CHALK} strokeOpacity=".6" strokeWidth="1.8" strokeLinecap="round" />
+          {Array.from({ length: 21 }, (_, i) => (
+            <path key={i} d={`M${20 + i * 14} 199 l-6 8`} stroke={CHALK} strokeOpacity=".22" strokeWidth="1.2" strokeLinecap="round" />
+          ))}
+
+          {/* height, up the side */}
+          <path d="M306 196 V40" stroke={CHALK} strokeOpacity=".4" strokeWidth="1.3" />
+          {[0, 5, 10, 15, 20].map(m => (
+            <path key={m} d={`M${m % 10 ? 301 : 298} ${196 - m * 7.8} H306`} stroke={CHALK} strokeOpacity=".45" strokeWidth="1.3" />
+          ))}
+          <text x="294" y="45" textAnchor="end" fontFamily={CHALK_FONT} fontWeight={600} fontSize="14" fill={CHALK} fillOpacity=".55">20 m</text>
+          <text x="294" y="123" textAnchor="end" fontFamily={CHALK_FONT} fontWeight={600} fontSize="14" fill={CHALK} fillOpacity=".55">10 m</text>
+
+          {/* the path, drawn in blue chalk */}
+          <motion.path d="M64 196 Q150 -116 236 196" fill="none" stroke="#a9dcff" strokeOpacity=".75" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.4, delay: 0.3, ease: 'easeOut' }} />
+
+          {/* where the ball was, every few moments */}
+          {[3, 7, 12, 17, 21].map(k => (
+            <circle key={k} cx={ARC.x[k]} cy={ARC.y[k]} r="8" fill="none" stroke={CHALK} strokeOpacity=".3" strokeWidth="1.4" />
+          ))}
+
+          {/* its speed: shrinking on the way up, growing on the way down */}
+          {up.map((k, i) => (
+            <motion.path key={k} d={chalkArrow(ARC.x[k] - 13, ARC.y[k], [-30, -18, -8][i])} fill="none" stroke={CHALK} strokeOpacity=".85" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 + i * 0.2 }} />
+          ))}
+          {down.map((k, i) => (
+            <motion.path key={k} d={chalkArrow(ARC.x[k] + 13, ARC.y[k], [8, 18, 30][i])} fill="none" stroke={CHALK} strokeOpacity=".85" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.6 + i * 0.2 }} />
+          ))}
+          <text x="14" y="88" fontFamily={CHALK_FONT} fontWeight={600} fontSize="15" fill={CHALK} fillOpacity=".7">slows down</text>
+          <text x="214" y="104" fontFamily={CHALK_FONT} fontWeight={600} fontSize="15" fill={CHALK} fillOpacity=".7">speeds up</text>
+
+          {/* the moment it stops */}
+          <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.2 }}>
+            <text x="174" y="22" fontFamily={CHALK_FONT} fontWeight={600} fontSize="18" fill="#ffd06a">v = 0 here!</text>
+            <path d="M171 17 C 163 15, 158 20, 156 28 M152.5 23.5 L156 28 L160.5 25" fill="none" stroke="#ffd06a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </motion.g>
+
+          {/* the ball itself */}
+          {reduce ? (
+            <circle cx={ARC.x[12]} cy={ARC.y[12]} r="7.5" fill="#ffd06a" />
+          ) : (
+            <motion.circle r="7.5" fill="#ffd06a" initial={{ cx: ARC.x[0], cy: ARC.y[0] }} animate={{ cx: ARC.x, cy: ARC.y }} transition={{ duration: 2.6, repeat: Infinity, ease: 'linear', repeatDelay: 0.8 }} />
+          )}
+
+          <text x="14" y="226" fontFamily={CHALK_FONT} fontWeight={600} fontSize="15" fill={CHALK} fillOpacity=".6">thrown up at 20 m/s</text>
+        </svg>
+      </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Small paper things for the cards under it                            */
+/* ------------------------------------------------------------------ */
+
+const WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+/** A pencil tick, each one at a slightly different angle, as if marked by hand. */
+function Tick({ i }: { i: number }) {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" aria-hidden style={{ transform: `rotate(${[-6, 4, -2, 6, -4, 2, 0][i]}deg)` }}>
+      <motion.path d="M4.5 12.5 C 6 14, 7.5 16, 9 18.5 C 11.5 12.5, 15 7.5, 20 4.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.35, delay: 0.7 + i * 0.12, ease: 'easeOut' }} />
+    </svg>
+  );
+}
+
+/** Today, circled by hand: not done yet. */
+function Circled() {
+  return (
+    <svg viewBox="0 0 32 32" className="absolute inset-[-3px]" aria-hidden>
+      <motion.path d="M9 7 C 15 2, 28 5, 28.5 15 C 29 26, 14 30, 6.5 23.5 C 2 19, 4 11, 12 6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, delay: 1.3, ease: 'easeOut' }} />
+    </svg>
+  );
+}
+
+/** A stack of index cards, the top one marked "Not yet" in red pen. They fan out on hover. */
+function IndexCards() {
+  return (
+    <span aria-hidden className="absolute right-5 top-5 h-[58px] w-[86px]">
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          className="absolute inset-0 rounded-[3px] bg-[#fffdf6] shadow-[0_6px_14px_-8px_rgba(0,0,0,.5)] ring-1 ring-black/5 transition-transform duration-500 ease-[cubic-bezier(.23,1,.32,1)] [transform:var(--rest)] group-hover:[transform:var(--fan)]"
+          style={{ ['--rest' as string]: `rotate(${[-8, -2, 4][i]}deg)`, ['--fan' as string]: `translateX(${[-10, 0, 10][i]}px) rotate(${[-15, -3, 10][i]}deg)` }}
+        >
+          <span className="absolute inset-x-0 top-[14px] h-px bg-[#e5643d]/50" />
+          {[25, 36, 47].map(t => (
+            <span key={t} className="absolute inset-x-0 h-px bg-[#3a8bd0]/20" style={{ top: t }} />
+          ))}
+          {i === 2 && <span className="hand absolute left-2 top-[17px] -rotate-3 text-[18px] leading-none text-[#d6453d]">Not yet</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** An empty sticky note: a test date still to fill in. */
+function TestNote() {
+  return (
+    <span aria-hidden className="sticky-note absolute right-5 top-4 w-[94px] rotate-[4deg] px-2.5 pb-3 pt-3.5 transition-transform duration-500 ease-[cubic-bezier(.23,1,.32,1)] group-hover:-translate-y-1 group-hover:rotate-[1deg]" style={{ background: '#ffe27a' }}>
+      <span className="absolute left-1/2 top-[-7px] h-3.5 w-11 -translate-x-1/2 rotate-[-3deg] bg-white/55" />
+      <span className="hand block text-[19px] leading-none">Test on</span>
+      <span className="mt-2.5 block h-px w-full bg-[#2a1f10]/45" />
+    </span>
+  );
+}
+
+/** A page torn from a desk calendar, for a test that is in the calendar. */
+function CalendarPage({ date }: { date: string }) {
+  const d = new Date(date + 'T00:00');
+  return (
+    <span aria-hidden className="absolute right-5 top-5 w-16 rotate-[3deg] overflow-hidden rounded-[5px] bg-[#fffdf6] text-center text-[#2a1f10] shadow-[0_6px_14px_-8px_rgba(0,0,0,.5)] ring-1 ring-black/5 transition-transform duration-500 group-hover:rotate-0">
+      <span className="block bg-[#e5643d] py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{d.toLocaleDateString(undefined, { month: 'short' })}</span>
+      <span className="block py-1 text-2xl font-semibold tabular-nums">{d.getDate()}</span>
+    </span>
   );
 }
 
@@ -126,6 +199,16 @@ export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string, f?:
     { icon: Notebook01Icon, label: 'Course from my notes', go: () => onGo('courses') }
   ];
   const [file, setFile] = useState<Attachment | null>(null);
+
+  // The lesson to pick up, with counts taken from the course itself so they match its folder below.
+  const { doneIn } = useProgress();
+  const course = MY_COURSES[0];
+  const lessons = course.chapters.flatMap(c => c.concepts);
+  const next = Math.max(0, lessons.indexOf('Acceleration: speeding up and slowing down'));
+  const done = Math.min(lessons.length, doneIn(course.title, course.done ?? 0));
+  const minutes = 18;
+  // This week, Monday first.
+  const dow = (new Date(today + 'T00:00').getDay() + 6) % 7;
 
   return (
     <div className="relative">
@@ -168,125 +251,98 @@ export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string, f?:
           <MonthEndPrompt onPlan={() => onGo('calendar')} />
         </div>
 
-        {/* 2. Continue */}
+        {/* 2. Continue: the next lesson, with the board Amy will draw on */}
         <motion.section {...rise(5)} className="mt-6 sm:mt-8">
-          <h2 className="text-sm font-medium text-muted mb-3 px-1">Pick up where you left off</h2>
-          <div className="relative overflow-hidden rounded-3xl border hairline bg-[var(--card)] p-3 shadow-[0_30px_80px_-50px_rgba(255,107,61,.6)]">
-            <div aria-hidden className="absolute -left-24 -top-24 size-72 rounded-full glow-amy opacity-50" />
-            <div className="relative grid gap-3 md:grid-cols-[1.2fr_1fr]">
-              <div className="flex flex-col p-4 sm:p-6">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-physics)]/15 px-3 py-1 font-medium text-[var(--color-physics)]">
-                    <span className="size-1.5 rounded-full bg-current" /> Physics
+          <h2 className="mb-3 px-1 text-sm font-medium text-muted">Pick up where you left off</h2>
+          <div className="card grid gap-2 p-2 md:grid-cols-[1.15fr_1fr]">
+            <div className="flex flex-col p-4 sm:p-6">
+              <div className="hand -rotate-1 self-start text-[22px] leading-none text-amy-600 dark:text-amy-400">Next up</div>
+              <h3 className="mt-2.5 text-[26px] font-semibold leading-[1.12] tracking-[-0.025em] sm:text-[30px]">{lessons[next]}</h3>
+              <p className="mt-2 text-sm text-muted">
+                {course.subject} · {course.title} · lesson {next + 1} of {lessons.length} · about {minutes} min
+              </p>
+              <p className="mt-4 leading-relaxed text-fg2">You nailed velocity last time. Today: why a ball thrown up slows, stops, and comes back.</p>
+
+              {/* the course, one mark per lesson */}
+              <div className="mt-auto pt-7">
+                <div className="flex items-baseline justify-between text-sm text-muted">
+                  <span>{course.title}</span>
+                  <span>
+                    <span className="font-semibold text-[var(--fg)] tabular-nums">{done}</span> of {lessons.length} done
                   </span>
-                  <span className="text-muted">Lesson 6 of 12 · 18 min</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amy-400/15 px-2.5 py-1 text-xs font-medium text-amy-600 dark:text-amy-200">Up next</span>
                 </div>
-                <h3 className="mt-5 text-[26px] font-semibold leading-[1.1] tracking-[-0.03em] sm:text-[34px]">
-                  Acceleration: speeding up <span className="serif amy-gradient-text">and slowing down</span>
-                </h3>
-                <p className="mt-3 leading-relaxed text-muted">You nailed velocity last time. Today: why a ball thrown up slows, stops, and comes back.</p>
-
-                {/* the course as 12 lessons */}
-                <div className="mt-6">
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="font-medium">Motion</span>
-                    <span className="text-muted"><span className="font-semibold text-[var(--fg)] tabular-nums">5</span> of 12 lessons done</span>
-                  </div>
-                  <div className="mt-2.5 flex gap-1">
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <motion.span key={i} initial={{ scaleY: 0.3, opacity: 0 }} animate={{ scaleY: 1, opacity: 1 }} transition={{ delay: 0.5 + i * 0.05, type: 'spring', stiffness: 300, damping: 18 }} className={`h-2.5 flex-1 rounded-full ${i < 5 ? 'bg-gradient-to-r from-amy-300 to-amy-500' : i === 5 ? 'bg-amy-400/30 ring-2 ring-amy-400' : 'bg-[var(--card-2)]'}`} />
-                    ))}
-                  </div>
+                <div className="mt-2 flex gap-1" aria-hidden>
+                  {lessons.map((l, i) => (
+                    <span key={l} className={`h-1.5 flex-1 rounded-full ${i < done ? 'bg-amy-500' : i === next ? 'bg-amy-500/35' : 'bg-[var(--card-2)]'}`} />
+                  ))}
                 </div>
-
-                <div className="mt-7 flex flex-wrap gap-2">
-                  <button onClick={() => onLearn(MY_COURSES[0], 4)} className="group inline-flex h-11 items-center gap-2 rounded-full bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500 pl-5 pr-2 font-semibold text-[#2a1406] shadow-[0_12px_30px_-12px_rgba(255,107,61,.8)] transition-transform active:scale-95">
-                    Continue lesson
-                    <span className="grid size-7 place-items-center rounded-full bg-[#2a1406] text-amy-200 transition-transform group-hover:translate-x-0.5"><Icon icon={PlayIcon} size={13} /></span>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  <button onClick={() => onLearn(course, next)} className="btn !min-h-11 !px-5 font-semibold text-[#2a1406] bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500 hover:brightness-105">
+                    Continue lesson <Icon icon={ArrowRight02Icon} size={17} />
                   </button>
-                  <button className="btn btn-ghost !min-h-11 !rounded-full" onClick={() => onAsk('Explain acceleration with an example')}>
+                  <button className="btn btn-ghost !min-h-11" onClick={() => onAsk('Explain acceleration with an example')}>
                     Ask about it
                   </button>
                 </div>
               </div>
-              <LessonArt />
             </div>
+            <ChalkThrow />
           </div>
         </motion.section>
 
         {/* 3. Three things worth knowing today */}
-        <section className="mt-4 grid gap-4 sm:grid-cols-3">
-          <motion.div {...rise(5)} className="relative overflow-hidden rounded-3xl border border-amy-400/30 p-6" style={{ background: 'linear-gradient(160deg, rgba(255,160,72,.16), rgba(255,107,61,.04) 60%), var(--card)' }}>
-            <motion.div aria-hidden className="absolute -right-8 -top-8 text-[120px] leading-none opacity-[.12]" animate={{ rotate: [-4, 4, -4], scale: [1, 1.05, 1] }} transition={{ duration: 3, repeat: Infinity }}>
-              <Icon icon={Fire03Icon} size={140} />
-            </motion.div>
-            <div className="relative flex items-center gap-2 text-sm font-medium text-amy-600 dark:text-amy-200">
-              <motion.span animate={{ scale: [1, 1.18, 1] }} transition={{ duration: 1.4, repeat: Infinity }}><Icon icon={Fire03Icon} size={18} /></motion.span> Streak
+        <section className="mt-4 grid gap-4 md:grid-cols-3">
+          {/* the week, marked off like a register */}
+          <motion.div {...rise(5)} className="card flex flex-col p-5 sm:p-6">
+            <div className="text-sm font-medium text-muted">Streak</div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-[44px] font-semibold leading-none tracking-[-0.04em] tabular-nums">12</span>
+              <span className="text-[15px] text-muted">days in a row</span>
             </div>
-            <div className="relative mt-2 text-5xl font-semibold tracking-[-0.04em]">
-              <CountUp trigger="load" to={12} duration={1.2} />
-              <span className="serif ml-1.5 text-2xl">days</span>
-            </div>
-            <div className="relative mt-5 flex justify-between">
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                <div key={i} className="flex flex-col items-center gap-1.5">
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.6 + i * 0.06, type: 'spring', stiffness: 320, damping: 16 }} className={`grid size-8 place-items-center rounded-full ${i < 4 ? 'bg-gradient-to-b from-amy-200 to-amy-600 text-[#2a1406] shadow-[0_6px_14px_-6px_rgba(255,107,61,.9)]' : i === 4 ? 'border-2 border-dashed border-amy-400 text-amy-500' : 'bg-[var(--card-2)] text-muted'}`}>
-                    {i < 4 ? <Icon icon={CheckmarkCircle02Icon} size={15} /> : i === 4 ? <span className="size-1.5 rounded-full bg-current" /> : null}
-                  </motion.span>
-                  <span className={`text-[11px] ${i === 4 ? 'font-semibold' : 'text-muted'}`}>{d}</span>
+            <div className="mt-5 grid grid-cols-7 overflow-hidden rounded-lg border hairline" role="img" aria-label={`This week: ${dow} ${dow === 1 ? 'day' : 'days'} done so far, today still to do.`}>
+              {WEEK.map((d, i) => (
+                <div key={i} className={`flex flex-col items-center gap-1 pb-1.5 pt-2 ${i ? 'border-l hairline' : ''} ${i === dow ? 'bg-amy-400/10' : ''}`}>
+                  <span className={`text-[11px] ${i === dow ? 'font-semibold text-[var(--fg)]' : 'text-muted'}`}>{d}</span>
+                  <span className="relative grid size-7 place-items-center text-amy-500">{i < dow ? <Tick i={i} /> : i === dow ? <Circled /> : null}</span>
                 </div>
               ))}
             </div>
-            <p className="relative mt-4 text-sm text-muted">One lesson today keeps it going.</p>
+            <p className="mt-auto pt-4 text-sm text-muted">One lesson today keeps it going.</p>
           </motion.div>
 
-          <motion.button {...rise(6)} onClick={() => onGo('practice')} className="group relative flex flex-col items-start overflow-hidden rounded-3xl border hairline bg-[var(--card)] p-6 text-left transition-colors hover:border-[var(--color-maths)]/50">
-            {/* the six questions, fanned out like cards */}
-            <div aria-hidden className="absolute right-5 top-5 h-16 w-20">
-              {[0, 1, 2].map(i => (
-                <span key={i} className="absolute inset-0 rounded-xl border border-[var(--color-maths)]/40 bg-[var(--card)] shadow-sm transition-transform duration-500 group-hover:rotate-0" style={{ transform: `rotate(${(i - 1) * 9}deg) translateY(${i * 2}px)` }}>
-                  {i === 2 && <span className="absolute inset-0 grid place-items-center text-lg font-semibold text-[var(--color-maths)]">?</span>}
-                </span>
-              ))}
+          <motion.button {...rise(6)} onClick={() => onGo('practice')} className="group card relative flex flex-col items-start p-5 text-left transition-colors hover:border-[var(--line-2)] sm:p-6">
+            <IndexCards />
+            <div className="text-sm font-medium text-muted">Revision</div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-[44px] font-semibold leading-none tracking-[-0.04em] tabular-nums">6</span>
+              <span className="text-[15px] text-muted">cards to revise</span>
             </div>
-            <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-maths)]">
-              <Icon icon={RepeatIcon} size={18} /> Revision
-            </div>
-            <div className="mt-2 text-5xl font-semibold tracking-[-0.04em]">
-              <CountUp trigger="load" to={6} duration={1} />
-              <span className="serif ml-1.5 text-2xl">due</span>
-            </div>
-            <p className="mt-3 text-sm text-muted">The ones you got “Not yet” on Tuesday. About 4 minutes.</p>
-            <div className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
+            <p className="mt-4 text-sm leading-relaxed text-muted">The ones you got “Not yet” on Tuesday. About 4 minutes.</p>
+            <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
               Revise now <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
-            </div>
+            </span>
           </motion.button>
 
-          <motion.button {...rise(7)} onClick={() => onGo('calendar')} className="group relative flex flex-col items-start overflow-hidden rounded-3xl border hairline bg-[var(--card)] p-6 text-left transition-colors hover:border-[var(--notyet)]/50">
-            {/* a little calendar page */}
-            <div aria-hidden className="absolute right-5 top-5 w-16 overflow-hidden rounded-xl border hairline bg-[var(--bg)] text-center shadow-sm transition-transform duration-500 group-hover:-rotate-6">
-              <div className="bg-[var(--notyet)] py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{exam ? new Date(exam.date + 'T00:00').toLocaleDateString(undefined, { month: 'short' }) : 'Test'}</div>
-              <div className="py-1.5 text-2xl font-semibold tabular-nums">{exam ? new Date(exam.date + 'T00:00').getDate() : '?'}</div>
-            </div>
-            <div className="flex items-center gap-2 text-sm font-medium text-[var(--notyet)]">
-              <Icon icon={Calendar03Icon} size={18} /> Next test
-            </div>
+          <motion.button {...rise(7)} onClick={() => onGo('calendar')} className="group card relative flex flex-col items-start p-5 text-left transition-colors hover:border-[var(--line-2)] sm:p-6">
+            {exam ? <CalendarPage date={exam.date} /> : <TestNote />}
+            <div className="text-sm font-medium text-muted">Next test</div>
             {exam ? (
               <>
-                <div className="mt-2 text-4xl font-semibold tracking-[-0.04em]">{relative(today, exam.date)}</div>
-                <p className="mt-3 text-sm text-muted">{exam.title} · {shortDate(exam.date)}</p>
-                <div className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
+                <div className="mt-2 pr-20 text-[32px] font-semibold leading-tight tracking-[-0.03em]">{relative(today, exam.date)}</div>
+                <p className="mt-3 pr-16 text-sm leading-relaxed text-muted">
+                  {exam.title} · {shortDate(exam.date)}
+                </p>
+                <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
                   Plan for it <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
-                </div>
+                </span>
               </>
             ) : (
               <>
-                <div className="mt-2 pr-16 text-2xl font-semibold leading-tight tracking-tight">No test added yet</div>
-                <p className="mt-3 text-sm text-muted">Add your test dates or upload your school calendar, and Amy plans around them.</p>
-                <div className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
+                <div className="mt-2 pr-24 text-xl font-semibold leading-snug tracking-tight">No test added yet</div>
+                <p className="mt-3 text-sm leading-relaxed text-muted">Add your test dates or upload your school calendar, and Amy plans around them.</p>
+                <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold">
                   Add a test date <Icon icon={ArrowRight02Icon} size={16} className="transition-transform group-hover:translate-x-1" />
-                </div>
+                </span>
               </>
             )}
           </motion.button>
