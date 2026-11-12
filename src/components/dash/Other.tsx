@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
-import { RepeatIcon, Brain02Icon, Time04Icon, Idea01Icon, Notebook01Icon } from '@hugeicons/core-free-icons';
+import { ArrowRight02Icon, RepeatIcon, Brain02Icon, CheckmarkCircle02Icon, Time04Icon, Idea01Icon, Notebook01Icon } from '@hugeicons/core-free-icons';
 import Amy from '../Amy';
-import { Icon, SUBJECT_COLOR } from '../ui';
+import { art, Icon, SUBJECT_ART, SUBJECT_COLOR } from '../ui';
+import { REGIONS, useRegion } from '../../region';
 import { useTheme } from '../../theme';
 import SpotlightCard from '../../bits/SpotlightCard';
 
@@ -18,6 +19,7 @@ const COURSES = [
 ];
 
 export function Courses() {
+  const { region } = useRegion();
   return (
     <div className={page}>
       <motion.h1 {...rise(0)} className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em]">
@@ -27,14 +29,16 @@ export function Courses() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {COURSES.map((c, i) => (
           <motion.div key={c.title} {...rise(i + 2)}>
-            <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }} className="card h-full cursor-pointer hover:border-[var(--line-2)] transition-colors">
-              <div className="p-6 flex flex-col h-full gap-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium" style={{ color: SUBJECT_COLOR[c.subject] }}>
-                    {c.subject}
-                  </span>
-                  <span className="text-muted">{c.board}</span>
-                </div>
+            <motion.div whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }} className="group card h-full cursor-pointer overflow-hidden flex flex-col hover:border-[var(--line-2)] transition-colors">
+              <div className="relative h-32 overflow-hidden rounded-t-[13px]">
+                <img src={art(SUBJECT_ART[c.subject])} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+                <span className="absolute left-4 bottom-3 rounded-full px-2.5 py-1 text-xs font-semibold text-[#0a0a0b]" style={{ background: SUBJECT_COLOR[c.subject] }}>
+                  {c.subject === 'Maths' ? region.math : c.subject}
+                </span>
+              </div>
+              <div className="p-6 flex flex-col gap-3 flex-1">
+                <div className="text-sm text-muted">{c.board === 'Made by you' ? c.board : region.boards[0]}</div>
                 <div className="text-xl font-semibold tracking-tight leading-snug">{c.title}</div>
                 <div className="text-sm text-muted">
                   {c.lessons} lessons · {c.time}
@@ -91,13 +95,16 @@ export function Practice() {
 }
 
 export function Me() {
+  const { region, setRegion } = useRegion();
   return (
     <div className={page}>
       <motion.div {...rise(0)} className="card p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:items-center">
         <div className="grid size-20 place-items-center rounded-lg bg-gradient-to-br from-amy-200 to-amy-600 text-[#2a1406] text-3xl font-semibold">R</div>
         <div>
           <div className="text-2xl font-semibold tracking-tight">Riya Sharma</div>
-          <div className="text-muted">Class 9 · CBSE · Delhi Public School</div>
+          <div className="text-muted">
+            {region.boards[0]} · {region.name}
+          </div>
         </div>
         <div className="sm:ml-auto">
           <Amy size={72} mood="happy" />
@@ -108,14 +115,48 @@ export function Me() {
           ['Language', 'English, with Hinglish when I ask'],
           ['Amy explains', 'One step at a time, with a check'],
           ['Voice', 'Calm, normal speed'],
-          ['School', 'Joined · Class 9 B']
+          ['School', 'Joined with a school code']
         ].map(([k, v], i) => (
           <motion.div key={k} {...rise(i + 1)} className="card p-5 flex justify-between gap-4">
             <span className="text-muted">{k}</span>
             <span className="text-right">{v}</span>
           </motion.div>
         ))}
+        <motion.label {...rise(5)} className="card p-5 flex items-center justify-between gap-4 sm:col-span-2">
+          <span className="text-muted">Where I study</span>
+          <select value={region.code} onChange={e => setRegion(e.target.value)} className="rounded-lg border hairline bg-[var(--card-2)] px-3 py-2 text-[15px] outline-none">
+            {REGIONS.map(r => (
+              <option key={r.code} value={r.code}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </motion.label>
       </div>
+
+      <motion.div {...rise(6)} className="mt-4 rounded-2xl p-[1.5px] bg-gradient-to-br from-amy-200 via-amy-500 to-amy-600">
+        <div className="rounded-[15px] bg-[var(--card)] p-6 sm:p-8 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div>
+            <div className="text-sm text-muted">Your plan: Amy (free)</div>
+            <div className="mt-1 text-2xl font-semibold tracking-tight">
+              Want more of her? <span className="serif amy-gradient-text">Amy+</span>
+            </div>
+            <ul className="mt-4 grid gap-2 text-[15px] sm:grid-cols-2">
+              {['225 voice minutes every 2 days, not 15', '5 new courses every week', 'Thinks longer on hard questions', 'New features first'].map(t => (
+                <li key={t} className="flex items-start gap-2">
+                  <Icon icon={CheckmarkCircle02Icon} size={18} className="mt-0.5 shrink-0 text-amy-500" /> {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <a
+            href="#/"
+            onClick={() => setTimeout(() => document.getElementById('pricing')?.scrollIntoView(), 500)}
+            className="btn !min-h-12 !px-6 font-semibold text-[#2a1406] bg-gradient-to-br from-amy-200 via-amy-400 to-amy-500 hover:brightness-105">
+            ₹1,999 a month <Icon icon={ArrowRight02Icon} size={18} stroke={2} />
+          </a>
+        </div>
+      </motion.div>
     </div>
   );
 }

@@ -36,7 +36,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col">
+    <div className="site min-h-dvh flex flex-col">
       {/* One top bar on every screen size. Phones also get a tab bar at the bottom. */}
       <header className="sticky top-0 z-40 border-b hairline bg-[var(--bg)]/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-[max(16px,env(safe-area-inset-left))] sm:px-6">

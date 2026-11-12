@@ -20,15 +20,16 @@ import {
 
 import Amy from '../components/Amy';
 import ChatDemo from '../components/ChatDemo';
-import { Icon, Logo, ThemeToggle } from '../components/ui';
+import { art, Icon, Logo, ThemeToggle } from '../components/ui';
+import { useTheme } from '../theme';
+import SoftAurora from '../bits/SoftAurora';
 import { CheckDemo, Faq, MiniGraph, NotesToCourse, Spaced, Tile, TypedAsk, Wave } from '../components/LandingBits';
 import { go } from '../router';
-import { REGIONS, RegionProvider, stagePhoto, stageQuestions, useRegion, type Region } from '../region';
+import { REGIONS, stagePhoto, stageQuestions, useRegion, type Region } from '../region';
 import LogoLoop from '../bits/LogoLoop';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 const wrap = 'mx-auto w-full max-w-6xl px-5 sm:px-8';
-const art = (name: string) => `${import.meta.env.BASE_URL}art/${name}.webp`;
 const ask = (q: string) => go(`/app?ask=${encodeURIComponent(q)}`);
 
 const reveal = (delay = 0) => ({
@@ -170,23 +171,27 @@ function AskBox() {
     ask(q.trim() || stages[stage].qs[0]);
   };
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-4xl">
       <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, ease: EASE }} className="flex justify-center">
-        <Amy size={76} follow={!typing} lookAt={typing ? 'down' : undefined} interactive />
+        <Amy size={64} follow={!typing} lookAt={typing ? 'down' : undefined} interactive />
       </motion.div>
-      <h1 className="mt-4 font-semibold tracking-[-0.045em] leading-[1.02] text-[clamp(38px,min(8.4vw,10.5vh),86px)]">
+      <motion.a href="#schools" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-4 inline-flex items-center gap-2 rounded-full border hairline bg-[var(--card)]/70 px-3.5 py-1.5 text-sm text-muted backdrop-blur hover:text-[var(--fg)] transition-colors">
+        <span className="size-1.5 rounded-full bg-amy-500" /> Free for students. Teachers, bring Amy to your class
+        <Icon icon={ArrowRight02Icon} size={14} />
+      </motion.a>
+      <h1 className="mt-4 font-semibold tracking-[-0.04em] leading-[1.04] text-[clamp(32px,min(6.6vw,8.6vh),72px)]">
         <motion.span initial={{ opacity: 0, y: 18, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.8, ease: EASE }} className="block">
-          Ask anything.
+          Stuck on a question?
         </motion.span>
         <motion.span initial={{ opacity: 0, y: 18, filter: 'blur(10px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ delay: 0.18, duration: 0.8, ease: EASE }} className="block">
-          Amy has <span className="serif amy-gradient-text pr-2">time.</span>
+          Amy explains it <span className="serif amy-gradient-text whitespace-nowrap pr-2">step by step.</span>
         </motion.span>
       </h1>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4, duration: 0.8 }} className="mx-auto mt-4 max-w-xl text-[17px] sm:text-lg text-muted leading-relaxed">
-        Your AI tutor from {r.span}. One step at a time, a quick check that it made sense, and your working marked honestly.
+        Your own AI tutor for {r.span}. Ask any doubt, learn it one small step at a time, and get your working checked.
       </motion.p>
 
-      <motion.form onSubmit={submit} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55, duration: 0.7, ease: EASE }} className="mt-6 rounded-2xl border border-[var(--line-2)] bg-[var(--card)] p-2 text-left shadow-[0_30px_70px_-34px_rgba(255,138,61,.55)]">
+      <motion.form onSubmit={submit} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55, duration: 0.7, ease: EASE }} className="mx-auto mt-6 max-w-2xl rounded-2xl border border-[var(--line-2)] bg-[var(--card)] p-2 text-left shadow-[0_30px_70px_-34px_rgba(255,138,61,.55)]">
         <div className="flex items-center gap-2">
           <label htmlFor="ask" className="sr-only">
             What are you stuck on?
@@ -215,7 +220,7 @@ function AskBox() {
         </div>
       </motion.form>
 
-      <div className="mt-3 flex min-h-[76px] flex-wrap justify-center gap-2 content-start">
+      <div className="mx-auto mt-3 flex min-h-[76px] max-w-2xl flex-wrap justify-center gap-2 content-start">
         <AnimatePresence mode="popLayout" initial={false}>
           {stages[stage].qs.map((s, i) => (
             <motion.button
@@ -282,6 +287,7 @@ function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
   const { region } = useRegion();
+  const { theme } = useTheme();
   const pic = (n: string) => (n.startsWith('stage') ? stagePhoto(region, Number(n.slice(5))) : n);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
   // A plain copy of the progress: values derived straight from a scroll value get handed to a
@@ -303,11 +309,15 @@ function Hero() {
 
   const line = 'If you can wonder it, Amy can teach it.'.split(' ');
 
-  const backdrop = (
-    <>
-      <div aria-hidden className="absolute inset-0 grid-bg" />
-      <div aria-hidden className="absolute left-1/2 top-[-340px] h-[640px] w-[1000px] -translate-x-1/2 rounded-full glow-amy blur-3xl opacity-50" />
-    </>
+  const backdrop = reduce ? (
+    <div aria-hidden className="absolute left-1/2 top-[-340px] h-[640px] w-[1000px] -translate-x-1/2 rounded-full glow-amy blur-3xl opacity-50" />
+  ) : (
+    <div aria-hidden className="absolute inset-0">
+      <div className="absolute left-1/2 top-[-380px] h-[640px] w-[1100px] -translate-x-1/2 rounded-full glow-amy blur-3xl opacity-40" />
+      <div className={`absolute inset-x-0 top-[-44%] h-[120%] [mask-image:linear-gradient(#000_48%,transparent_80%)] ${theme === 'dark' ? 'blur-[42px] scale-y-[1.6]' : ''}`}>
+        <SoftAurora color1={theme === 'dark' ? '#ff9a3d' : '#ffe2a6'} color2={theme === 'dark' ? '#ff5a2a' : '#ff8a3d'} speed={0.4} spectrum={0} colorSpeed={0.2} brightness={theme === 'dark' ? 1.25 : 1} bandSpread={theme === 'dark' ? 2.2 : 1.25} noiseFrequency={1.8} mouseInfluence={0.2} clickPulse={false} lightMode={theme !== 'dark'} opacity={theme === 'dark' ? 0.9 : 0.7} />
+      </div>
+    </div>
   );
 
   if (reduce)
@@ -1037,7 +1047,6 @@ function Footer() {
 
 export default function Landing() {
   return (
-    <RegionProvider>
     <div className="site min-h-dvh overflow-x-clip">
       <Nav />
       <main>
@@ -1057,6 +1066,5 @@ export default function Landing() {
       </main>
       <Footer />
     </div>
-    </RegionProvider>
   );
 }

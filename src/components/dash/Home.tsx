@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight02Icon, ArrowUp02Icon, Camera01Icon, CheckmarkCircle02Icon, Fire03Icon, Message01Icon, Mic01Icon, PlayIcon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
+import { ArrowRight02Icon, ArrowUp02Icon, Brain02Icon, Call02Icon, Camera01Icon, CheckmarkCircle02Icon, Fire03Icon, Message01Icon, Mic01Icon, Notebook01Icon, PlayIcon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
 import Amy from '../Amy';
-import { Icon, SUBJECT_COLOR } from '../ui';
+import { art, Icon, SUBJECT_ART, SUBJECT_COLOR } from '../ui';
+import { useRegion } from '../../region';
+import { useTheme } from '../../theme';
+import SoftAurora from '../../bits/SoftAurora';
 import type { View } from '../../pages/Dashboard';
 import CountUp from '../../bits/CountUp';
 import SpringCheck from '../../bits/SpringCheck';
@@ -85,6 +88,14 @@ const RECENT = [
 
 export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onGo: (v: View) => void }) {
   const [q, setQ] = useState('');
+  const { region } = useRegion();
+  const { theme } = useTheme();
+  const quick = [
+    { icon: Camera01Icon, label: 'Snap a question', go: () => onAsk('') },
+    { icon: Call02Icon, label: 'Call Amy', go: () => onAsk('') },
+    { icon: Brain02Icon, label: 'Mock paper', go: () => onGo('practice') },
+    { icon: Notebook01Icon, label: 'Course from my notes', go: () => onGo('courses') }
+  ];
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onAsk(q);
@@ -93,8 +104,11 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
   return (
     <div className="relative">
       {/* soft light behind the greeting */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[520px] overflow-hidden">
-        <div className="absolute left-1/2 top-[-260px] h-[620px] w-[900px] -translate-x-1/2 rounded-lg glow-amy opacity-50 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+        <div className="absolute left-1/2 top-[-260px] h-[620px] w-[900px] -translate-x-1/2 rounded-full glow-amy opacity-40 blur-3xl" />
+        <div className={`absolute inset-x-0 top-[-60%] h-[150%] [mask-image:linear-gradient(#000_45%,transparent_75%)] ${theme === 'dark' ? 'blur-[42px] scale-y-[1.6]' : ''}`}>
+          <SoftAurora color1={theme === 'dark' ? '#ff9a3d' : '#ffe2a6'} color2={theme === 'dark' ? '#ff5a2a' : '#ff8a3d'} speed={0.35} spectrum={0} colorSpeed={0.2} brightness={theme === 'dark' ? 1.25 : 1} bandSpread={theme === 'dark' ? 2.2 : 1.25} noiseFrequency={1.8} enableMouseInteraction={false} clickPulse={false} lightMode={theme !== 'dark'} opacity={theme === 'dark' ? 0.8 : 0.6} />
+        </div>
       </div>
 
       <div className="relative mx-auto max-w-5xl px-[max(16px,env(safe-area-inset-left))] sm:px-6">
@@ -127,10 +141,18 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
               </button>
             </div>
           </motion.form>
+
+          <motion.div {...rise(4)} className="mt-4 flex flex-wrap justify-center gap-2">
+            {quick.map(a => (
+              <motion.button key={a.label} type="button" onClick={a.go} whileHover={{ y: -2 }} className="inline-flex items-center gap-2 rounded-full border hairline bg-[var(--card)] px-4 py-2 text-sm text-fg2 hover:border-amy-400 transition-colors">
+                <Icon icon={a.icon} size={16} className="text-amy-500" /> {a.label}
+              </motion.button>
+            ))}
+          </motion.div>
         </section>
 
         {/* 2. Continue */}
-        <motion.section {...rise(4)} className="mt-14 sm:mt-20">
+        <motion.section {...rise(5)} className="mt-12 sm:mt-16">
           <h2 className="text-sm font-medium text-muted mb-3 px-1">Pick up where you left off</h2>
           <div className="card p-3 grid gap-3 md:grid-cols-[1.25fr_1fr]">
             <div className="p-4 sm:p-6 flex flex-col">
@@ -227,14 +249,21 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {SUBJECTS.map((s, i) => (
-              <motion.button key={s.name} whileHover={{ y: -4 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }} onClick={() => onGo('courses')} className="card p-4 sm:p-5 text-left flex flex-col items-start sm:flex-row sm:items-center gap-3 sm:gap-4 min-w-0">
-                <div className="relative grid place-items-center">
-                  <Ring value={s.pct} color={SUBJECT_COLOR[s.name]} delay={0.5 + i * 0.1} />
-                  <span className="absolute text-[13px] font-medium tabular-nums">{s.pct}</span>
+              <motion.button key={s.name} whileHover={{ y: -6 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }} onClick={() => onGo('courses')} className="group card overflow-hidden text-left min-w-0 hover:border-[var(--line-2)]">
+                <div className="relative aspect-[16/10] overflow-hidden">
+                  <img src={art(SUBJECT_ART[s.name])} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute bottom-2.5 left-3 text-[15px] font-semibold text-white">{s.name === 'Maths' ? region.math : s.name}</div>
                 </div>
-                <div className="min-w-0 max-w-full">
-                  <div className="font-medium">{s.name}</div>
-                  <div className="text-sm text-muted truncate">{s.note}</div>
+                <div className="flex items-center gap-3 p-3.5">
+                  <div className="relative grid place-items-center">
+                    <Ring value={s.pct} size={44} stroke={5} color={SUBJECT_COLOR[s.name]} delay={0.5 + i * 0.1} />
+                    <span className="absolute text-[11px] font-medium tabular-nums">{s.pct}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted">Now learning</div>
+                    <div className="text-sm font-medium truncate">{s.note}</div>
+                  </div>
                 </div>
               </motion.button>
             ))}

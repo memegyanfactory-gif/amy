@@ -33,6 +33,11 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
   );
 }
 
+/** A photo from public/art. */
+export const art = (name: string) => `${import.meta.env.BASE_URL}art/${name}.webp`;
+
+export const SUBJECT_ART: Record<string, string> = { Physics: 'physics', Maths: 'maths', Chemistry: 'science', Biology: 'biology', English: 'reading' };
+
 export const SUBJECT_COLOR: Record<string, string> = {
   Physics: 'var(--color-physics)',
   Maths: 'var(--color-maths)',

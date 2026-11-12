@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useRoute } from './router';
+import { RegionProvider } from './region';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -9,8 +10,10 @@ export default function App() {
   const route = useRoute();
   const Page = route.startsWith('/app') ? Dashboard : route.startsWith('/amy') ? MascotSheet : Landing;
   return (
-    <Suspense fallback={<div className="min-h-dvh" />}>
-      <Page />
-    </Suspense>
+    <RegionProvider>
+      <Suspense fallback={<div className="min-h-dvh" />}>
+        <Page />
+      </Suspense>
+    </RegionProvider>
   );
 }
