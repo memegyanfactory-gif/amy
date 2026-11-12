@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { AnimatePresence, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { AnimatePresence, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform, type MotionValue } from 'motion/react';
 import {
   ArrowDown01Icon,
   ArrowRight02Icon,
@@ -23,6 +23,7 @@ import ChatDemo from '../components/ChatDemo';
 import { Icon, Logo, ThemeToggle } from '../components/ui';
 import { CheckDemo, Faq, MiniGraph, NotesToCourse, Spaced, Tile, TypedAsk, Wave } from '../components/LandingBits';
 import { go } from '../router';
+import { REGIONS, RegionProvider, stagePhoto, stageQuestions, useRegion, type Region } from '../region';
 import LogoLoop from '../bits/LogoLoop';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
@@ -41,46 +42,17 @@ const reveal = (delay = 0) => ({
 /* Content, taken from amy-tutor.com                                   */
 /* ------------------------------------------------------------------ */
 
-const STAGES: { id: string; qs: string[] }[] = [
-  { id: 'Class 1–5', qs: ['Why does ice float on water?', 'What makes a rainbow?', 'How do plants drink water?'] },
-  { id: 'Class 6–8', qs: ['Solve 3x + 7 = 22 step by step', 'Why does the moon change shape?', 'What is photosynthesis?'] },
-  { id: 'Class 9–10', qs: ['Explain Newton’s third law with an example', 'Quiz me on the mole concept', 'Prove the Pythagoras theorem'] },
-  { id: 'Class 11–12', qs: ['Explain integration by parts', 'How does a p-n junction work?', 'Quiz me on chemical bonding'] },
-  { id: 'NEET', qs: ['Quiz me on human physiology', 'Explain the Krebs cycle step by step', 'Make me a mock paper on genetics'] }
-];
-
-const BOARDS = ['CBSE', 'ICSE', 'State boards', 'IB', 'Cambridge', 'AP', 'GCSE', 'A-Level', 'NIOS', 'NEET'];
-
 const SUBJECTS: { img: string; title: string; who: string; q: string }[] = [
-  { img: 'maths', title: 'Maths', who: 'Class 1 to 12', q: 'Solve 3x + 7 = 22 step by step' },
-  { img: 'physics', title: 'Physics', who: 'Class 9 to 12 · NEET', q: 'Explain Newton’s third law with an example' },
-  { img: 'science', title: 'Chemistry', who: 'Class 6 to 12 · NEET', q: 'Quiz me on the mole concept' },
-  { img: 'biology', title: 'Biology', who: 'Class 6 to 12 · NEET', q: 'Quiz me on human physiology' },
-  { img: 'nature', title: 'Science', who: 'Class 1 to 8', q: 'How do plants drink water?' },
+  { img: 'maths', title: 'Maths', who: '@all', q: 'Solve 3x + 7 = 22 step by step' },
+  { img: 'physics', title: 'Physics', who: '@senior', q: 'Explain Newton’s third law with an example' },
+  { img: 'science', title: 'Chemistry', who: '@senior', q: 'Quiz me on the mole concept' },
+  { img: 'biology', title: 'Biology', who: '@senior', q: 'Quiz me on human physiology' },
+  { img: 'nature', title: 'Science', who: '@junior', q: 'How do plants drink water?' },
   { img: 'space', title: 'Space', who: 'Any age', q: 'Why does the moon change shape?' },
-  { img: 'world', title: 'Geography', who: 'Class 3 to 12', q: 'Why do we have seasons?' },
-  { img: 'reading', title: 'English', who: 'Class 1 to 12', q: 'Help me write a story opening' },
+  { img: 'world', title: 'Geography', who: '@all', q: 'Why do we have seasons?' },
+  { img: 'reading', title: 'English', who: '@all', q: 'Help me write a story opening' },
   { img: 'coding', title: 'Coding', who: 'Your own course', q: 'Teach me to code, starting from zero' },
   { img: 'music', title: 'Reading music', who: 'Your own course', q: 'Teach me to read music' }
-];
-
-const COUNTRIES: [string, string[]][] = [
-  ['India', ['CBSE', 'ICSE', 'ISC', 'State Board', 'NIOS']],
-  ['United States', ['US curriculum (Common Core)', 'AP', 'SAT / ACT prep']],
-  ['United Kingdom', ['National Curriculum (England)', 'GCSE', 'A-Level', 'Scottish Nationals / Highers']],
-  ['Australia', ['Australian Curriculum', 'HSC (NSW)', 'VCE (Victoria)', 'QCE (Queensland)', 'WACE (WA)']],
-  ['Canada', ['Ontario curriculum', 'BC curriculum', 'Alberta curriculum', 'Quebec curriculum']],
-  ['Singapore', ['PSLE', 'O-Level (Singapore)', 'A-Level (Singapore)']],
-  ['Malaysia', ['KSSM / SPM', 'STPM']],
-  ['Philippines', ['DepEd K to 12']],
-  ['Pakistan', ['Matric (SSC)', 'Intermediate (FSc / HSSC)']],
-  ['Bangladesh', ['SSC (Bangladesh)', 'HSC (Bangladesh)']],
-  ['Nepal', ['SEE (Nepal)', 'NEB (+2)']],
-  ['Sri Lanka', ['O/L (Sri Lanka)', 'A/L (Sri Lanka)']],
-  ['Nigeria', ['WAEC (WASSCE)', 'NECO', 'JAMB (UTME) prep']],
-  ['Kenya', ['CBC (Kenya)', 'KCSE']],
-  ['South Africa', ['CAPS (NSC)', 'IEB']],
-  ['International school', ['IB', 'IGCSE', 'Cambridge (O / AS / A Level)', 'American curriculum', 'British curriculum']]
 ];
 
 const FREE = [
@@ -104,11 +76,13 @@ const PLUS: [string, string][] = [
   ['Everything in Amy', 'All ten, with nothing taken away.']
 ];
 
-const FAQ = [
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+const faq = (r: Region) => [
   { q: 'Is Amy free?', a: 'Yes. The free plan is for every student and needs no card. You can even ask your first questions without signing up. Amy+ is there if you use Amy every day and want more voice time and more courses.' },
   { q: 'How much is Amy+?', a: 'The first 100 students pay ₹1,999 a month plus GST, and keep that price every month it renews. After that it is ₹2,999. Amy+ renews monthly and you can cancel anytime.' },
   { q: 'Will Amy just do my homework for me?', a: 'No. She teaches one step at a time, asks a quick check after each idea, and marks your working honestly. She works the answer out herself before she says well done.' },
-  { q: 'Which classes is Amy for?', a: 'Class 1 to Class 12, and students preparing for NEET. Amy teaches to your country’s board and your class, so a Class 4 answer and a Class 12 answer to the same question are not the same.' },
+  { q: 'Which classes is Amy for?', a: `${cap(r.span)}. Amy teaches to your country’s curriculum and your class, so a younger student and an older one get different answers to the same question.` },
   { q: 'Which boards and countries?', a: 'CBSE, ICSE, ISC, state boards, NIOS, IB, IGCSE, Cambridge, AP and the national curricula of 16 countries. Not at school? Make your own course on anything.' },
   { q: 'Which languages does Amy speak?', a: 'English, Hindi, Hinglish and 17 more. She speaks ten Indian languages aloud.' },
   { q: 'Can my school use Amy?', a: 'Yes. A school gets one code. Teachers choose the courses for each class and see how each student is getting on. Write to us with your school’s name and a teacher’s email and we set it up.' }
@@ -186,12 +160,14 @@ const DOODLES: { t: string; x: string; y: string; r: number; s: number; d: numbe
 ];
 
 function AskBox() {
+  const { region: r, source } = useRegion();
+  const stages = useMemo(() => r.tags.map((id, i) => ({ id, qs: stageQuestions(r)[i] })), [r]);
   const [stage, setStage] = useState(1);
   const [q, setQ] = useState('');
   const [typing, setTyping] = useState(false);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    ask(q.trim() || STAGES[stage].qs[0]);
+    ask(q.trim() || stages[stage].qs[0]);
   };
   return (
     <div className="mx-auto w-full max-w-2xl">
@@ -207,7 +183,7 @@ function AskBox() {
         </motion.span>
       </h1>
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4, duration: 0.8 }} className="mx-auto mt-4 max-w-xl text-[17px] sm:text-lg text-muted leading-relaxed">
-        Your AI tutor from Class 1 to Class 12 and NEET. One step at a time, a quick check that it made sense, and your working marked honestly.
+        Your AI tutor from {r.span}. One step at a time, a quick check that it made sense, and your working marked honestly.
       </motion.p>
 
       <motion.form onSubmit={submit} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55, duration: 0.7, ease: EASE }} className="mt-6 rounded-2xl border border-[var(--line-2)] bg-[var(--card)] p-2 text-left shadow-[0_30px_70px_-34px_rgba(255,138,61,.55)]">
@@ -230,7 +206,7 @@ function AskBox() {
           </button>
         </div>
         <div className="mt-2 flex gap-1 overflow-x-auto border-t hairline pt-2 [scrollbar-width:none]" role="tablist" aria-label="Your class">
-          {STAGES.map((s, i) => (
+          {stages.map((s, i) => (
             <button key={s.id} type="button" role="tab" aria-selected={i === stage} onClick={() => setStage(i)} className={`relative shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${i === stage ? 'text-[var(--on-invert)]' : 'text-muted hover:text-[var(--fg)]'}`}>
               {i === stage && <motion.span layoutId="stage" className="absolute inset-0 rounded-lg bg-[var(--invert)]" transition={{ type: 'spring', stiffness: 380, damping: 30 }} />}
               <span className="relative">{s.id}</span>
@@ -241,7 +217,7 @@ function AskBox() {
 
       <div className="mt-3 flex min-h-[76px] flex-wrap justify-center gap-2 content-start">
         <AnimatePresence mode="popLayout" initial={false}>
-          {STAGES[stage].qs.map((s, i) => (
+          {stages[stage].qs.map((s, i) => (
             <motion.button
               key={s}
               type="button"
@@ -258,22 +234,27 @@ function AskBox() {
           ))}
         </AnimatePresence>
       </div>
-      <p className="mt-1 text-sm text-muted">No sign-up for your first questions.</p>
+      <p className="mt-1 text-sm text-muted">
+        No sign-up for your first questions.{' '}
+        <a href="#curricula" className="underline decoration-dotted underline-offset-4 hover:text-[var(--fg)]">
+          {source === 'default' ? 'Choose your country' : `Set up for ${r.name} · change`}
+        </a>
+      </p>
     </div>
   );
 }
 
 const FLY: { img: string; x: number; y: number }[] = [
-  { img: 'maths', x: -40, y: -30 },
+  { img: 'stage1', x: -40, y: -30 },
   { img: 'biology', x: 40, y: -26 },
   { img: 'space', x: -44, y: 26 },
-  { img: 'physics', x: 42, y: 28 },
-  { img: 'world', x: -16, y: -42 },
+  { img: 'stage3', x: 42, y: 28 },
+  { img: 'maths', x: -16, y: -42 },
   { img: 'coding', x: 18, y: 42 },
-  { img: 'music', x: -50, y: -2 },
-  { img: 'reading', x: 50, y: 2 },
+  { img: 'stage4', x: -50, y: -2 },
+  { img: 'physics', x: 50, y: 2 },
   { img: 'science', x: 12, y: -44 },
-  { img: 'nature', x: -14, y: 44 }
+  { img: 'stage2', x: -14, y: 44 }
 ];
 
 function FlyCard({ p, i, img, x, y }: { p: MotionValue<number>; i: number; img: string; x: number; y: number }) {
@@ -286,7 +267,7 @@ function FlyCard({ p, i, img, x, y }: { p: MotionValue<number>; i: number; img: 
   const rotate = useTransform(p, [from, to], [0, x > 0 ? 8 : -8]);
   return (
     <div className="absolute inset-0 grid place-items-center pointer-events-none">
-      <motion.img src={art(img)} alt="" loading="eager" decoding="async" style={{ x: tx, y: ty, scale, opacity, rotate }} className="w-[clamp(120px,17vw,230px)] aspect-[3/4] rounded-3xl object-cover shadow-[0_30px_60px_-20px_rgba(0,0,0,.5)] will-change-transform" />
+      <motion.img src={art(img)} alt="" loading="eager" decoding="async" style={{ x: tx, y: ty, scale, opacity, rotate }} className="w-[clamp(120px,17vw,230px)] aspect-[3/4] rounded-2xl object-cover ring-1 ring-white/10 shadow-[0_30px_60px_-20px_rgba(0,0,0,.55)] will-change-transform" />
     </div>
   );
 }
@@ -300,6 +281,8 @@ function Word({ p, i, n, children }: { p: MotionValue<number>; i: number; n: num
 function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  const { region } = useRegion();
+  const pic = (n: string) => (n.startsWith('stage') ? stagePhoto(region, Number(n.slice(5))) : n);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
   // A plain copy of the progress: values derived straight from a scroll value get handed to a
   // native scroll timeline, which tracks the whole page instead of this section.
@@ -352,7 +335,7 @@ function Hero() {
         {/* 2. The line, with everything you can learn flying past */}
         <motion.div style={{ opacity: lineOpacity }} className="absolute inset-0">
           {FLY.map((f, i) => (
-            <FlyCard key={f.img} p={p} i={i} {...f} />
+            <FlyCard key={f.img} p={p} i={i} {...f} img={pic(f.img)} />
           ))}
           <div className="absolute inset-0 grid place-items-center px-6">
             <motion.p style={{ scale: lineScale }} className="max-w-4xl font-semibold tracking-[-0.04em] leading-[1.05] text-[clamp(34px,7vw,84px)] [text-shadow:0_2px_30px_var(--bg)]">
@@ -383,10 +366,12 @@ function Hero() {
 /* ------------------------------------------------------------------ */
 
 function Boards() {
+  const { region: r } = useRegion();
+  const boards = [...new Set([...r.boards, 'IB', 'IGCSE', 'Cambridge'])];
   return (
     <section aria-label="Boards" className="py-10 border-y hairline">
-      <p className="text-center text-sm text-muted mb-6">Taught to your board and your class</p>
-      <LogoLoop logos={BOARDS.map(b => ({ node: <span className="text-xl font-medium tracking-tight text-[var(--muted)]">{b}</span>, title: b }))} speed={36} gap={64} logoHeight={28} fadeOut fadeOutColor="var(--bg)" pauseOnHover ariaLabel="Boards" />
+      <p className="text-center text-sm text-muted mb-6">{r.code === 'INT' ? 'Taught to your curriculum, wherever you study' : `Taught to your curriculum in ${r.name}`}</p>
+      <LogoLoop key={r.code} logos={boards.map(b => ({ node: <span className="text-xl font-medium tracking-tight text-[var(--muted)]">{b}</span>, title: b }))} speed={36} gap={64} logoHeight={28} fadeOut fadeOutColor="var(--bg)" pauseOnHover ariaLabel="Boards" />
     </section>
   );
 }
@@ -398,6 +383,124 @@ function Head({ eyebrow, title, children, center = false }: { eyebrow: string; t
       <h2 className="mt-2 text-4xl sm:text-5xl font-semibold tracking-[-0.035em] leading-[1.06]">{title}</h2>
       {children && <p className="mt-5 text-lg text-muted leading-relaxed">{children}</p>}
     </motion.div>
+  );
+}
+
+const PHOTO_X: Record<Region['photos'], number[]> = { stage: [30, 45, 70, 50], west: [70, 50, 45, 40], sea: [35, 40, 45, 70], af: [35, 45, 50, 50] };
+
+/** The four stages of school in this region: tag, wording, sample question and photo. */
+function ages(r: Region) {
+  const qs = stageQuestions(r);
+  const titles = ['Curious about everything', 'Building the basics', r.third ?? 'The exam years', r.last ?? `Preparing for ${r.tags[3]}`];
+  const texts = [
+    'Simple words, small steps and pictures, with a quick check after each idea.',
+    `Worked steps in ${r.math.toLowerCase()} and science, and your own working marked honestly.`,
+    'Lessons for your curriculum and mock papers, marked the way an examiner would.',
+    'Quizzes, mock papers and a mastery map of what to revisit before the exam.'
+  ];
+  const replies = [
+    'Great question. Let’s find out with a glass of water.',
+    'First we get 3x on its own. What should we undo?',
+    'Push on a wall and it pushes back. Let’s see why.',
+    r.examQs ? 'Ten questions, exam pattern. Ready for the first?' : 'It is the product rule, run backwards. Let’s build it.'
+  ];
+  return r.tags.map((tag, i) => ({ tag, img: stagePhoto(r, i + 1), title: titles[i], text: texts[i], q: qs[i][0], reply: replies[i], pos: `${PHOTO_X[r.photos][i]}% 30%` }));
+}
+const AGE_MS = 5200;
+
+/** One tutor that grows with the student: pick a class, the photo and the conversation change. */
+function Ages() {
+  const { region } = useRegion();
+  const AGES = useMemo(() => ages(region), [region]);
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { amount: 0.35 });
+  const reduce = useReducedMotion();
+  const [i, setI] = useState(0);
+  const [hold, setHold] = useState(false);
+  const run = inView && !hold && !reduce;
+  useEffect(() => {
+    if (!run) return;
+    const t = setTimeout(() => setI(v => (v + 1) % AGES.length), AGE_MS);
+    return () => clearTimeout(t);
+  }, [i, run]);
+  const a = AGES[i];
+
+  return (
+    <section className={`${wrap} pt-24 sm:pt-32`}>
+      <div ref={ref} onPointerEnter={() => setHold(true)} onPointerLeave={() => setHold(false)} className="grid items-center gap-10 lg:grid-cols-[1fr_1.05fr] lg:gap-16">
+        <div>
+          <Head eyebrow="One tutor, every class" title={<>She grows up <span className="serif">with you.</span></>}>
+            The same Amy, pitched to your class. A younger student and an older one get different answers to the same question.
+          </Head>
+
+          <div className="mt-9" role="tablist" aria-label="Your class">
+            {AGES.map((s, k) => {
+              const on = k === i;
+              return (
+                <button key={s.tag} role="tab" aria-selected={on} onClick={() => setI(k)} className="group relative block w-full border-t hairline py-4 pl-5 text-left last:border-b">
+                  <span aria-hidden className="absolute left-0 top-0 h-full w-[3px] overflow-hidden rounded-full bg-[var(--line)]">
+                    {on && <motion.span key={`${k}-${run}`} className="block h-full w-full origin-top bg-gradient-to-b from-amy-200 to-amy-600" initial={{ scaleY: run ? 0 : 1 }} animate={{ scaleY: 1 }} transition={{ duration: run ? AGE_MS / 1000 : 0.3, ease: 'linear' }} />}
+                  </span>
+                  <span className="flex items-baseline gap-4">
+                    <span className={`w-[128px] shrink-0 text-sm font-medium transition-colors ${on ? 'text-amy-500' : 'text-muted'}`}>{s.tag}</span>
+                    <span className={`text-xl font-semibold tracking-tight transition-colors sm:text-2xl ${on ? '' : 'text-muted group-hover:text-[var(--fg)]'}`}>{s.title}</span>
+                  </span>
+                  <AnimatePresence initial={false}>
+                    {on && (
+                      <motion.span initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: EASE }} className="block overflow-hidden">
+                        <span className="block max-w-md pt-2 leading-relaxed text-muted sm:pl-[144px]">{s.text}</span>
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="relative mx-auto w-full max-w-[520px]">
+          <div aria-hidden className="absolute -inset-6 rounded-[40px] glow-amy blur-3xl opacity-40" />
+          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-[var(--line-2)] bg-[var(--card-2)] shadow-[0_50px_100px_-50px_rgba(0,0,0,.7)]">
+            <AnimatePresence initial={false}>
+              <motion.img key={a.img} src={art(a.img)} alt={`A ${a.tag} student studying with Amy`} style={{ objectPosition: a.pos }} initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.9, ease: EASE }} className="absolute inset-0 h-full w-full object-cover" />
+            </AnimatePresence>
+            <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
+
+            <AnimatePresence mode="wait">
+              <motion.span key={a.tag} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="absolute left-4 top-4 rounded-full bg-black/55 px-3.5 py-1.5 text-sm font-medium text-white backdrop-blur-md">
+                {a.tag}
+              </motion.span>
+            </AnimatePresence>
+
+            {/* The conversation, sitting on the desk rather than on the face */}
+            <div className="absolute inset-x-4 bottom-4 sm:inset-x-5 sm:bottom-5">
+              <AnimatePresence mode="wait">
+                <motion.div key={a.q} className="flex flex-col gap-2.5" exit={{ opacity: 0, transition: { duration: 0.2 } }}>
+                  <motion.div initial={{ opacity: 0, y: 14, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.25, type: 'spring', stiffness: 260, damping: 22 }} className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-white px-4 py-2.5 text-[15px] font-medium text-[#141416] shadow-lg">
+                    {a.q}
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0, y: 14, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 1.05, type: 'spring', stiffness: 260, damping: 22 }} className="flex max-w-[92%] items-end gap-2 self-start">
+                    <Amy size={34} glow={false} float={false} mood="happy" />
+                    <span className="rounded-2xl rounded-bl-md bg-black/60 px-4 py-2.5 text-[15px] text-white backdrop-blur-md">{a.reply}</span>
+                  </motion.div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="flex gap-1.5" aria-hidden>
+              {AGES.map((s, k) => (
+                <span key={s.tag} className={`h-1.5 rounded-full transition-all duration-500 ${k === i ? 'w-7 bg-amy-500' : 'w-1.5 bg-[var(--line-2)]'}`} />
+              ))}
+            </div>
+            <button onClick={() => ask(a.q)} className="inline-flex items-center gap-1.5 text-sm font-medium hover:text-amy-500 transition-colors">
+              Ask Amy this <Icon icon={ArrowRight02Icon} size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -578,18 +681,21 @@ function Film() {
 /* ------------------------------------------------------------------ */
 
 function Subjects() {
-  const row = [...SUBJECTS, ...SUBJECTS];
+  const { region: r } = useRegion();
+  const who: Record<string, string> = { '@all': r.all, '@junior': r.junior, '@senior': r.senior };
+  const list = SUBJECTS.map(s => ({ ...s, title: s.title === 'Maths' ? r.math : s.title, who: who[s.who] ?? s.who }));
+  const row = [...list, ...list];
   return (
     <section id="subjects" className="border-y hairline bg-[var(--bg-2)] py-24 sm:py-32 scroll-mt-16 overflow-hidden">
       <div className={wrap}>
-        <Head eyebrow="Pick a subject" title={<>From first sums <span className="serif">to NEET.</span></>}>
+        <Head eyebrow="Pick a subject" title={<>From first sums <span className="serif">to {r.end}.</span></>}>
           Amy teaches every school subject to your class. Not at school? Make your own course on anything, from coding to reading music.
         </Head>
       </div>
       <div className="mt-12 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
         <div className="marquee gap-5 pr-5">
           {row.map((s, i) => (
-            <button key={i} onClick={() => ask(s.q)} aria-hidden={i >= SUBJECTS.length} tabIndex={i >= SUBJECTS.length ? -1 : 0} className="group relative w-[220px] sm:w-[250px] shrink-0 overflow-hidden rounded-3xl text-left shadow-[0_24px_50px_-28px_rgba(0,0,0,.5)] transition-transform duration-500 ease-[var(--ease-soft)] hover:-translate-y-2 hover:rotate-[-1.5deg]">
+            <button key={i} onClick={() => ask(s.q)} aria-hidden={i >= SUBJECTS.length} tabIndex={i >= SUBJECTS.length ? -1 : 0} className="group relative w-[220px] sm:w-[250px] shrink-0 overflow-hidden rounded-2xl text-left shadow-[0_24px_50px_-28px_rgba(0,0,0,.5)] transition-transform duration-500 ease-[var(--ease-soft)] hover:-translate-y-2">
               <img src={art(s.img)} alt="" loading="lazy" className="aspect-[3/4] w-full object-cover transition-transform duration-700 ease-[var(--ease-soft)] group-hover:scale-110" />
               <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-4 pt-12 text-white">
                 <span className="block text-xl font-semibold tracking-tight">{s.title}</span>
@@ -611,18 +717,19 @@ function Subjects() {
 /* ------------------------------------------------------------------ */
 
 function Curricula() {
-  const [c, setC] = useState(0);
-  const [, boards] = COUNTRIES[c];
+  const { region, source, setRegion } = useRegion();
+  const c = REGIONS.findIndex(x => x.code === region.code);
+  const boards = region.boards;
   return (
     <section id="curricula" className={`${wrap} py-24 sm:py-32 scroll-mt-16`}>
       <div className="grid gap-12 lg:grid-cols-[1fr_1.1fr] items-start">
         <div>
           <Head eyebrow="Wherever you study" title={<>Your country. Your board. <span className="serif">Your class.</span></>}>
-            Amy teaches to your country’s board and your class. Pick where you study.
+            {source === 'detected' ? `It looks like you are in ${region.name}, so this page is set up for it. ` : ''}Pick where you study and the whole page follows: classes, exams, boards and examples.
           </Head>
           <div className="mt-8 flex flex-wrap gap-2">
-            {COUNTRIES.map(([name], i) => (
-              <button key={name} onClick={() => setC(i)} aria-pressed={i === c} className={`relative rounded-full px-3.5 py-2 text-sm transition-colors ${i === c ? 'text-[var(--on-invert)]' : 'border hairline text-fg2 hover:border-amy-400'}`}>
+            {REGIONS.map(({ name, code }, i) => (
+              <button key={name} onClick={() => setRegion(code)} aria-pressed={i === c} className={`relative rounded-full px-3.5 py-2 text-sm transition-colors ${i === c ? 'text-[var(--on-invert)]' : 'border hairline text-fg2 hover:border-amy-400'}`}>
                 {i === c && <motion.span layoutId="country" className="absolute inset-0 rounded-full bg-[var(--invert)]" transition={{ type: 'spring', stiffness: 380, damping: 30 }} />}
                 <span className="relative">{name}</span>
               </button>
@@ -635,7 +742,7 @@ function Curricula() {
           <div className="relative pl-10 sm:pl-12">
             <div className="flex items-center gap-3">
               <Amy size={44} glow={false} float={false} mood="happy" key={c} />
-              <div className="hand text-3xl leading-none">{COUNTRIES[c][0]}</div>
+              <div className="hand text-3xl leading-none">{region.name}</div>
             </div>
             <div className="mt-5 flex min-h-[128px] flex-wrap content-start gap-2.5">
               <AnimatePresence mode="popLayout" initial={false}>
@@ -764,6 +871,8 @@ function Bars() {
 }
 
 function Pricing() {
+  const { region: r } = useRegion();
+  const lessons = r.code === 'IN' ? FREE[0] : r.code === 'INT' ? 'Lessons and quizzes for IB, IGCSE and Cambridge' : `Lessons and quizzes for ${r.boards.slice(0, 3).join(', ')}, IB and Cambridge`;
   return (
     <section id="pricing" className={`${wrap} py-24 sm:py-32 scroll-mt-16`}>
       <Head eyebrow="Pricing" title={<>Free to learn with. <span className="serif">Amy+ when you want more of her.</span></>} center>
@@ -782,7 +891,7 @@ function Pricing() {
             {FREE.map((f, i) => (
               <motion.li key={f} initial={{ opacity: 0, x: -8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.04 }} className="flex gap-3">
                 <span className="hand w-6 shrink-0 text-xl leading-6 text-amy-500 tabular-nums">{String(i + 1).padStart(2, '0')}</span>
-                <span className="leading-6">{f}</span>
+                <span className="leading-6">{i === 0 ? lessons : f}</span>
               </motion.li>
             ))}
           </ol>
@@ -834,12 +943,13 @@ function Pricing() {
 /* ------------------------------------------------------------------ */
 
 function Questions() {
+  const { region } = useRegion();
   return (
     <section id="faq" className="border-t hairline bg-[var(--bg-2)] scroll-mt-16">
       <div className={`${wrap} py-24 sm:py-32 grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
         <Head eyebrow="Hands up" title={<>Before you <span className="serif">start.</span></>} />
         <motion.div {...reveal(0.1)}>
-          <Faq items={FAQ} />
+          <Faq items={faq(region)} />
         </motion.div>
       </div>
     </section>
@@ -853,9 +963,9 @@ function FinalCta() {
     <section className={`${wrap} py-24 sm:py-32`}>
       <motion.div {...reveal()} className="relative overflow-hidden rounded-3xl border border-[var(--line-2)] shadow-[0_50px_120px_-50px_rgba(0,0,0,.6)]">
         <div className="relative left-1/2 w-[max(100%,760px)] -translate-x-1/2 [container-type:inline-size]">
-          <img src={art('classroom')} alt="A sunny classroom with a chalkboard" loading="lazy" className="block aspect-[16/9] w-full object-cover" />
-          <div className="absolute left-[35.5%] top-[24%] grid h-[30%] w-[34%] place-items-center text-center">
-            <p className="hand text-[4.6cqw] leading-[1.05] text-[#f4f1e6]">
+          <img src={art('classroom')} alt="A sunlit classroom with a chalkboard" loading="lazy" className="block aspect-[16/9] w-full object-cover" />
+          <div className="absolute left-[34.4%] top-[28.6%] grid h-[23%] w-[31.6%] place-items-center text-center">
+            <p className="hand text-[4.1cqw] leading-[1.05] text-[#f4f1e6]/95">
               {words.map((w, i) => (
                 <motion.span key={i} className="inline-block" initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }} whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }} viewport={{ once: true, amount: 0.8 }} transition={{ delay: 0.3 + i * 0.16, duration: 0.4 }}>
                   {w}&nbsp;
@@ -887,6 +997,7 @@ function FinalCta() {
 }
 
 function Footer() {
+  const { region } = useRegion();
   const cols: [string, [string, string][]][] = [
     ['Learn', [['How Amy teaches', '#how'], ['Subjects', '#subjects'], ['Curricula', '#curricula']]],
     ['Plans', [['Pricing', '#pricing'], ['Amy+', '#amy-plus'], ['For schools', '#schools']]],
@@ -897,7 +1008,7 @@ function Footer() {
       <div className={`${wrap} py-14 grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
         <div>
           <Logo />
-          <p className="mt-3 max-w-xs text-sm text-muted leading-relaxed">Learning through conversation, from Class 1 to Class 12 and NEET.</p>
+          <p className="mt-3 max-w-xs text-sm text-muted leading-relaxed">Learning through conversation, from {region.span}.</p>
         </div>
         {cols.map(([title, links]) => (
           <div key={title}>
@@ -926,11 +1037,13 @@ function Footer() {
 
 export default function Landing() {
   return (
+    <RegionProvider>
     <div className="site min-h-dvh overflow-x-clip">
       <Nav />
       <main>
         <Hero />
         <Boards />
+        <Ages />
         <Chalkboard />
         <Lesson />
         <Features />
@@ -944,5 +1057,6 @@ export default function Landing() {
       </main>
       <Footer />
     </div>
+    </RegionProvider>
   );
 }
