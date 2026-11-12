@@ -122,28 +122,28 @@ export default function Dashboard() {
   return (
     <div className="site min-h-dvh flex flex-col">
       {/* One top bar on every screen size. Phones also get a tab bar at the bottom. */}
-      <header className="sticky top-0 z-40 border-b hairline bg-[var(--bg)]/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-[max(16px,env(safe-area-inset-left))] sm:px-6">
+      <header className="sticky top-0 z-40 px-3 pt-[max(12px,env(safe-area-inset-top))] sm:px-5">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 rounded-full border border-[var(--line-2)] bg-[var(--bg)]/70 pl-2 pr-2 shadow-[0_18px_50px_-24px_rgba(0,0,0,.45)] backdrop-blur-xl">
           <Logo />
-          <nav className="hidden md:flex mx-auto items-center gap-1 rounded-lg border hairline p-1" aria-label="App">
+          <nav className="hidden md:flex mx-auto items-center gap-0.5" aria-label="App">
             {NAV.map(n => {
               const on = view === n.id;
               return (
-                <button key={n.id} onClick={() => setView(n.id)} aria-current={on ? 'page' : undefined} className={`relative rounded-lg px-4 py-2 text-sm transition-colors ${on ? 'text-[var(--on-invert)]' : 'text-muted hover:text-[var(--fg)]'}`}>
-                  {on && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-lg bg-[var(--invert)]" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />}
+                <button key={n.id} onClick={() => setView(n.id)} aria-current={on ? 'page' : undefined} className={`relative rounded-full px-4 py-2 text-sm transition-colors ${on ? 'text-[var(--on-invert)]' : 'text-fg2 hover:text-[var(--fg)]'}`}>
+                  {on && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-[var(--invert)]" transition={{ type: 'spring', stiffness: 420, damping: 36 }} />}
                   <span className="relative">{n.label}</span>
                 </button>
               );
             })}
           </nav>
           <div className="ml-auto md:ml-0 flex items-center gap-2">
-            <ThemeToggle />
+            <ThemeToggle className="!rounded-full !border-transparent" />
             <ProfileMenu onGo={setView} />
           </div>
         </div>
       </header>
 
-      <main className={`flex-1 min-w-0 ${view === 'chat' ? '' : 'pb-28 md:pb-16'}`}>
+      <main className={`-mt-[68px] flex-1 min-w-0 pt-[68px] ${view === 'chat' ? '' : 'pb-28 md:pb-16'}`}>
         <AnimatePresence mode="wait">
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}>
             {view === 'home' && <Home onAsk={openChat} onGo={setView} onLearn={learn} />}

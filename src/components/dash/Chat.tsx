@@ -430,7 +430,7 @@ export default function Chat({ initial = '', initialFile }: { initial?: string; 
 
   return (
     <LayoutGroup>
-      <div className="flex flex-col h-[calc(100dvh-64px-62px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[calc(100dvh-64px)]">
+      <div className="flex flex-col h-[calc(100dvh-68px-62px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[calc(100dvh-68px)]">
         {empty ? (
           <div className="flex-1 grid place-items-center px-4 sm:px-6">
             <div className="w-full max-w-[680px] flex flex-col items-center pb-16">

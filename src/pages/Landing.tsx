@@ -146,12 +146,7 @@ function Nav() {
           transition={{ duration: 0.45, ease: EASE }}
           className={`mx-auto flex h-14 items-center gap-3 rounded-full pl-4 pr-2 transition-[background-color,border-color,box-shadow,max-width] duration-500 ${solid ? 'max-w-5xl border border-[var(--line-2)] bg-[var(--bg)]/70 shadow-[0_18px_50px_-24px_rgba(0,0,0,.45)] backdrop-blur-xl' : 'max-w-6xl border border-[var(--line)] bg-[var(--bg)]/45 backdrop-blur-md'}`}
         >
-          <a href="#/" aria-label="Amy home" className="flex shrink-0 items-center gap-2 rounded-full bg-[#fffaf0] py-1 pl-1 pr-3.5 shadow-[0_6px_20px_-10px_rgba(0,0,0,.45)] ring-1 ring-black/5 transition-transform hover:scale-[1.03]">
-            <span className="grid size-8 place-items-center overflow-hidden rounded-full bg-[#fff1dc]">
-              <Amy size={32} glow={false} float={false} />
-            </span>
-            <span className="text-[17px] font-semibold tracking-tight text-[#0a0a0b]">Amy</span>
-          </a>
+          <Logo />
           <div className="mx-auto hidden items-center lg:flex" onMouseLeave={() => setHover(null)}>
             {LINKS.map(([href, label]) => {
               const on = active === href;

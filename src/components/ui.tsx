@@ -2,16 +2,20 @@ import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import { Moon02Icon, Sun03Icon } from '@hugeicons/core-free-icons';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTheme } from '../theme';
+import Amy from './Amy';
 
 export function Icon({ icon, size = 20, className = '', stroke = 1.6 }: { icon: IconSvgElement; size?: number; className?: string; stroke?: number }) {
   return <HugeiconsIcon icon={icon} size={size} strokeWidth={stroke} className={className} aria-hidden />;
 }
 
-export function Logo({ size = 30, onClick }: { size?: number; onClick?: () => void }) {
+/** Amy's logo: her face in a round badge and her name in black, on a cream pill, so it reads on any background. */
+export function Logo({ onClick }: { size?: number; onClick?: () => void }) {
   return (
-    <a href="#/" onClick={onClick} className="flex items-center gap-2 font-semibold tracking-tight text-[19px]" aria-label="Amy home">
-      <span aria-hidden className="block rounded-full" style={{ width: size * 0.62, height: size * 0.62, background: 'radial-gradient(circle at 35% 30%, #fff4d6, #ffa048 55%, #ff6b3d)' }} />
-      <span>Amy</span>
+    <a href="#/" onClick={onClick} aria-label="Amy home" className="flex shrink-0 items-center gap-2 rounded-full bg-[#fffaf0] py-1 pl-1 pr-3.5 shadow-[0_6px_20px_-10px_rgba(0,0,0,.45)] ring-1 ring-black/5 transition-transform hover:scale-[1.03]">
+      <span className="grid size-8 place-items-center overflow-hidden rounded-full bg-[#fff1dc]">
+        <Amy size={32} glow={false} float={false} />
+      </span>
+      <span className="text-[17px] font-semibold tracking-tight text-[#0a0a0b]">Amy</span>
     </a>
   );
 }
