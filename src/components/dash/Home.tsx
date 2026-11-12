@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight02Icon, ArrowUp02Icon, Brain02Icon, Call02Icon, Camera01Icon, CheckmarkCircle02Icon, Fire03Icon, Message01Icon, Mic01Icon, Notebook01Icon, PlayIcon, RepeatIcon, Calendar03Icon } from '@hugeicons/core-free-icons';
 import Amy from '../Amy';
 import { Icon } from '../ui';
 import { Folder, MY_COURSES } from './Courses';
+import { Composer, SlidesToggle, type Attachment } from './Composer';
 import { useTheme } from '../../theme';
 import SoftAurora from '../../bits/SoftAurora';
 import type { View } from '../../pages/Dashboard';
@@ -65,7 +66,7 @@ const RECENT = [
   { icon: Mic01Icon, title: "Voice call: Newton's third law", sub: 'Physics · 6 min', when: 'Sunday' }
 ];
 
-export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string) => void; onGo: (v: View) => void; onLearn: (c: (typeof MY_COURSES)[number], i: number) => void }) {
+export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string, f?: Attachment) => void; onGo: (v: View) => void; onLearn: (c: (typeof MY_COURSES)[number], i: number) => void }) {
   const [q, setQ] = useState('');
   const { theme } = useTheme();
   const { profile } = useProfile();
@@ -80,15 +81,12 @@ export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string) => 
       ? `You have ${todayLeft} ${todayLeft === 1 ? 'thing' : 'things'} planned for today.`
       : `It's ${longDate(today)}. What do you want to learn today?`;
   const quick = [
-    { icon: Camera01Icon, label: 'Snap a question', go: () => onAsk('') },
-    { icon: Call02Icon, label: 'Call Amy', go: () => onAsk('') },
+    { icon: Calendar03Icon, label: 'My calendar', go: () => onGo('calendar') },
+    { icon: RepeatIcon, label: 'Revise mistakes', go: () => onGo('practice') },
     { icon: Brain02Icon, label: 'Mock paper', go: () => onGo('practice') },
     { icon: Notebook01Icon, label: 'Course from my notes', go: () => onGo('courses') }
   ];
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    onAsk(q);
-  };
+  const [file, setFile] = useState<Attachment | null>(null);
 
   return (
     <div className="relative">
@@ -113,23 +111,10 @@ export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string) => 
             {line}
           </motion.p>
 
-          <motion.form {...rise(3)} onSubmit={submit} className="mt-8 w-full max-w-2xl">
-            <div className="flex items-center gap-1 rounded-lg border hairline bg-[var(--card)] p-2 pl-6 shadow-[0_24px_60px_-28px_rgba(255,140,60,.55)] focus-within:border-amy-400/70 transition-colors">
-              <label htmlFor="home-ask" className="sr-only">
-                Ask Amy
-              </label>
-              <input id="home-ask" value={q} onChange={e => setQ(e.target.value)} placeholder="What are you stuck on?" className="min-w-0 flex-1 bg-transparent py-2.5 text-[17px] outline-none placeholder:text-[var(--muted)]" autoComplete="off" />
-              <button type="button" className="hidden sm:grid size-11 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] transition-colors" aria-label="Snap a photo of a question">
-                <Icon icon={Camera01Icon} />
-              </button>
-              <button type="button" className="hidden sm:grid size-11 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] transition-colors" aria-label="Talk to Amy">
-                <Icon icon={Mic01Icon} />
-              </button>
-              <button type="submit" className="grid size-11 place-items-center rounded-lg bg-[var(--invert)] text-[var(--on-invert)] transition-transform active:scale-95" aria-label="Ask">
-                <Icon icon={ArrowUp02Icon} size={19} />
-              </button>
-            </div>
-          </motion.form>
+          <motion.div {...rise(3)} className="mt-8 w-full max-w-2xl text-left">
+            <Composer big value={q} onChange={setQ} onSend={() => onAsk(q, file ?? undefined)} placeholder="What are you stuck on?" attachment={file} onAttach={setFile} />
+            <div className="mt-2 flex justify-start"><SlidesToggle /></div>
+          </motion.div>
 
           <motion.div {...rise(4)} className="mt-4 flex flex-wrap justify-center gap-2">
             {quick.map(a => (

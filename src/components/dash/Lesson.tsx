@@ -19,14 +19,18 @@ import {
   PresentationBarChart01Icon,
   Quiz01Icon,
   Search02Icon,
-  Tick02Icon
+  Tick02Icon,
+  SidebarLeftIcon,
+  SidebarRightIcon
 } from '@hugeicons/core-free-icons';
 import Amy, { type AmyMood } from '../Amy';
 import { Icon, ThemeToggle } from '../ui';
 import { Thinking } from './Chat';
+import { Composer, SlideDeck, SlidesToggle, chunk, type Attachment } from './Composer';
+import Board, { BOARD_TABS, type BoardTab } from './Board';
 import type { Course } from './Courses';
 import { LESSONS, isRight, type LessonContent, type Q } from '../../lessons';
-import { useProfile, useProgress } from '../../store';
+import { useChatSettings, useProfile, useProgress } from '../../store';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 const PASS = 6;
@@ -37,12 +41,12 @@ const PASS = 6;
 
 type Msg =
   | { id: number; from: 'me'; text: string }
-  | { id: number; from: 'amy'; text: string[]; ask?: string; thinking?: string[]; tone?: 'right' | 'notyet' }
+  | { id: number; from: 'amy'; text: string[]; ask?: string; thinking?: string[]; tone?: 'right' | 'notyet'; slide?: number }
   | { id: number; from: 'quiz' };
 
 const pauseAfter = (w: string) => (/[.!?]$/.test(w) ? 220 : /[,;:]$/.test(w) ? 110 : 22 + Math.min(w.length, 10) * 3);
 
-function AmyMsg({ msg, live, onDone, onGrow }: { msg: Extract<Msg, { from: 'amy' }>; live: boolean; onDone: () => void; onGrow: () => void }) {
+function AmyMsg({ msg, live, onDone, onGrow, drawing, slides }: { msg: Extract<Msg, { from: 'amy' }>; live: boolean; onDone: () => void; onGrow: () => void; drawing?: { title: string; points: string[] }; slides: boolean }) {
   const reduce = useReducedMotion();
   const paras = useMemo(() => [...msg.text, ...(msg.ask ? [msg.ask] : [])].map(p => p.split(' ')), [msg]);
   const total = paras.reduce((n, p) => n + p.length, 0);
@@ -82,6 +86,21 @@ function AmyMsg({ msg, live, onDone, onGrow }: { msg: Extract<Msg, { from: 'amy'
 
   useEffect(onGrow, [step, Math.floor(n / 5), onGrow]);
 
+  const finished = !thinking && n >= total;
+  if (slides && !thinking) {
+    const deck = [
+      ...chunk(msg.text).map((t, i) => ({ key: `t${i}`, node: <p className={`font-medium tracking-[-0.01em] ${i === 0 && msg.tone === 'right' ? 'text-[var(--right)]' : ''}`}>{t}</p> })),
+      ...(drawing ? [{ key: 'draw', node: <DrawCard d={drawing} big /> }] : []),
+      ...(msg.ask ? [{ key: 'ask', node: <div><div className="mb-2 text-sm font-medium uppercase tracking-wider text-amy-500">Your turn</div><p className="text-[24px] font-semibold leading-snug sm:text-[28px]">{msg.ask}</p><p className="mt-4 text-base text-muted">Type your answer in the box below.</p></div> }] : [])
+    ];
+    return (
+      <div className="min-w-0 flex-1 flex flex-col gap-3">
+        {steps.length > 0 && <Thinking steps={steps} at={steps.length - 1} live={false} ms={ms} />}
+        <SlideDeck slides={deck} deckKey={msg.id} />
+      </div>
+    );
+  }
+
   let used = 0;
   return (
     <div className="min-w-0 flex-1 flex flex-col gap-3">
@@ -105,7 +124,26 @@ function AmyMsg({ msg, live, onDone, onGrow }: { msg: Extract<Msg, { from: 'amy'
             </p>
           );
         })}
+      {drawing && finished && <DrawCard d={drawing} />}
     </div>
+  );
+}
+
+/** A board slide drawn inline in the lesson, for Always draw. */
+function DrawCard({ d, big = false }: { d: { title: string; points: string[] }; big?: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.45, ease: EASE }} className={`relative overflow-hidden rounded-2xl border hairline bg-[var(--card)] ${big ? 'p-2' : 'p-5'}`}>
+      <div aria-hidden className="absolute -right-12 -top-12 size-40 rounded-full glow-amy opacity-60" />
+      <div className="relative text-xs font-medium uppercase tracking-wider text-amy-500">On the board</div>
+      <div className={`relative mt-1 font-semibold tracking-tight ${big ? 'text-[26px]' : 'text-lg'}`}>{d.title}</div>
+      <ul className={`relative mt-3 flex flex-col gap-2 ${big ? 'text-[20px]' : 'text-[15px]'}`}>
+        {d.points.map((p, i) => (
+          <motion.li key={p} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + i * 0.12 }} className="flex gap-2.5">
+            <span className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-amy-500" /> {p}
+          </motion.li>
+        ))}
+      </ul>
+    </motion.div>
   );
 }
 
@@ -307,139 +345,10 @@ function Quiz({ qs, onPassed, onNext, hasNext }: { qs: Q[]; onPassed: () => void
 }
 
 /* ------------------------------------------------------------------ */
-/* The board: slides, an infographic and a mind map                     */
-/* ------------------------------------------------------------------ */
-
-function Board({ c, onAsk, wide, onWide }: { c: LessonContent | undefined; onAsk: (q: string) => void; wide: boolean; onWide: () => void }) {
-  const [tab, setTab] = useState<'slides' | 'info' | 'map'>('slides');
-  const [s, setS] = useState(0);
-  const [open, setOpen] = useState<number | null>(0);
-  const [dir, setDir] = useState(1);
-  const go = (n: number) => {
-    if (!c) return;
-    setDir(n);
-    setS(v => Math.min(c.slides.length - 1, Math.max(0, v + n)));
-  };
-  const key = (e: KeyboardEvent) => {
-    if (tab !== 'slides') return;
-    if (e.key === 'ArrowRight') go(1);
-    if (e.key === 'ArrowLeft') go(-1);
-  };
-  const tabs: [typeof tab, string, typeof BulbIcon][] = [['slides', 'Slides', PresentationBarChart01Icon], ['info', 'Infographic', LeftToRightListBulletIcon], ['map', 'Mind map', BulbIcon]];
-
-  return (
-    <div className="flex h-full min-h-0 flex-col" onKeyDown={key} tabIndex={-1}>
-      <div className="flex h-12 shrink-0 items-center gap-1 border-b hairline px-3">
-        {tabs.map(([id, label, icon]) => (
-          <button key={id} onClick={() => setTab(id)} aria-pressed={tab === id} className={`relative inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${tab === id ? 'text-[var(--on-invert)]' : 'text-muted hover:text-[var(--fg)]'}`}>
-            {tab === id && <motion.span layoutId="board-tab" className="absolute inset-0 rounded-lg bg-[var(--invert)]" transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}
-            <span className="relative inline-flex items-center gap-1.5"><Icon icon={icon} size={15} /> {label}</span>
-          </button>
-        ))}
-        <button onClick={onWide} aria-label={wide ? 'Make the board smaller' : 'Make the board bigger'} className="ml-auto hidden size-8 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)] lg:grid">
-          <Icon icon={wide ? Minimize01Icon : Maximize01Icon} size={16} />
-        </button>
-      </div>
-
-      <div className="relative min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-        {!c ? (
-          <p className="mt-10 text-center text-sm text-muted">Slides, an infographic and a mind map appear here when Amy teaches this lesson.</p>
-        ) : tab === 'slides' ? (
-          <div className="flex h-full flex-col">
-            <div className="relative flex-1 overflow-hidden rounded-2xl border hairline bg-[var(--card)] [perspective:1200px]" style={{ minHeight: 280 }}>
-              <div aria-hidden className="absolute -right-16 -top-16 size-48 rounded-full glow-amy opacity-60" />
-              <AnimatePresence mode="wait" custom={dir}>
-                <motion.div key={s} custom={dir} initial={{ opacity: 0, x: 40 * dir, rotateY: 8 * dir }} animate={{ opacity: 1, x: 0, rotateY: 0 }} exit={{ opacity: 0, x: -40 * dir, rotateY: -8 * dir }} transition={{ duration: 0.35, ease: EASE }} className="relative flex h-full flex-col p-6 sm:p-8">
-                  <div className="text-xs font-medium uppercase tracking-wider text-amy-500">Slide {s + 1} of {c.slides.length}</div>
-                  <h3 className={`mt-3 font-semibold leading-tight tracking-[-0.02em] ${wide ? 'text-4xl' : 'text-2xl'}`}>{c.slides[s].title}</h3>
-                  <ul className="mt-5 flex flex-col gap-3">
-                    {c.slides[s].points.map((p, i) => (
-                      <motion.li key={p} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + i * 0.12 }} className={`flex gap-3 leading-relaxed ${wide ? 'text-xl' : 'text-[15.5px]'}`}>
-                        <span className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-amy-500" />
-                        {p}
-                      </motion.li>
-                    ))}
-                  </ul>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <button onClick={() => go(-1)} disabled={s === 0} className="inline-flex h-9 items-center gap-1 rounded-lg border hairline px-3 text-sm disabled:opacity-35 hover:bg-[var(--card-2)]"><Icon icon={ArrowLeft01Icon} size={15} /> Prev</button>
-              <div className="flex gap-1.5">
-                {c.slides.map((_, i) => (
-                  <button key={i} onClick={() => { setDir(i > s ? 1 : -1); setS(i); }} aria-label={`Slide ${i + 1}`} className={`h-1.5 rounded-full transition-all ${i === s ? 'w-6 bg-amy-500' : 'w-1.5 bg-[var(--line-2)]'}`} />
-                ))}
-              </div>
-              <button onClick={() => go(1)} disabled={s === c.slides.length - 1} className="inline-flex h-9 items-center gap-1 rounded-lg border hairline px-3 text-sm disabled:opacity-35 hover:bg-[var(--card-2)]">Next <Icon icon={ArrowRight01Icon} size={15} /></button>
-            </div>
-          </div>
-        ) : tab === 'info' ? (
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-amy-500">Step by step</div>
-            <h3 className="mt-1 text-2xl font-semibold tracking-tight">{c.info.title}</h3>
-            <p className="mt-1 text-muted">{c.info.summary}</p>
-            <ol className={`relative mt-5 grid gap-3 ${wide ? 'sm:grid-cols-2' : ''}`}>
-              {c.info.steps.map((st, i) => (
-                <motion.li key={st.title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} className="flex gap-3 rounded-xl border hairline bg-[var(--card)] p-4">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-amy-400/15 text-sm font-semibold text-amy-600 dark:text-amy-200">{i + 1}</span>
-                  <div className="min-w-0">
-                    <div className="font-medium">{st.title}</div>
-                    <p className="mt-0.5 text-sm leading-relaxed text-muted">{st.text}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {st.tags.map(t => <span key={t} className="rounded-md bg-[var(--card-2)] px-2 py-0.5 text-xs">{t}</span>)}
-                    </div>
-                  </div>
-                </motion.li>
-              ))}
-            </ol>
-            <div className="mt-3 rounded-xl border border-amy-400/50 bg-amy-400/10 p-4 text-[15px]">
-              <span className="font-medium">Remember: </span>{c.info.remember}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <p className="text-sm text-muted">The big picture of {c.map.center}. Tap a part to open it.</p>
-            <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-              <div className="shrink-0 rounded-2xl bg-[var(--invert)] px-5 py-4 text-center text-lg font-semibold text-[var(--on-invert)] sm:w-40">{c.map.center}</div>
-              <svg aria-hidden viewBox="0 0 40 200" preserveAspectRatio="none" className="hidden h-[220px] w-10 shrink-0 sm:block">
-                {c.map.branches.map((_, i) => {
-                  const y = 25 + i * (150 / Math.max(1, c.map.branches.length - 1));
-                  return <motion.path key={i} d={`M0 100 C 20 100, 20 ${y}, 40 ${y}`} fill="none" stroke="#ff8a3d" strokeOpacity=".7" strokeWidth="1.5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.1 * i, duration: 0.5 }} />;
-                })}
-              </svg>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                {c.map.branches.map((b, i) => (
-                  <div key={b.title} className={`rounded-xl border transition-colors ${open === i ? 'border-amy-400 bg-amy-400/5' : 'hairline bg-[var(--card)]'}`}>
-                    <button onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i} className="flex w-full items-center gap-2 px-3 py-2.5 text-left font-medium">
-                      <span className="size-2 rounded-full bg-amy-500" /> {b.title}
-                      <motion.span animate={{ rotate: open === i ? 180 : 0 }} className="ml-auto text-muted"><Icon icon={ArrowDown01Icon} size={15} /></motion.span>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {open === i && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <ul className="px-3 pb-2 text-sm text-fg2">
-                            {b.points.map(p => <li key={p} className="py-0.5">· {p}</li>)}
-                          </ul>
-                          <button onClick={() => onAsk(`Tell me more about ${b.title.toLowerCase()}`)} className="mx-3 mb-3 inline-flex items-center gap-1 text-sm font-medium text-amy-600 dark:text-amy-200">Ask Amy about this <Icon icon={ArrowRight02Icon} size={14} /></button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* The course outline                                                   */
 /* ------------------------------------------------------------------ */
 
-function Outline({ course, index, done, onOpen }: { course: Course; index: number; done: number; onOpen: (i: number) => void }) {
+function Outline({ course, index, done, onOpen, onCollapse }: { course: Course; index: number; done: number; onOpen: (i: number) => void; onCollapse?: () => void }) {
   const total = course.chapters.reduce((n, c) => n + c.concepts.length, 0);
   const pct = Math.round((Math.min(done, total) / total) * 100);
   const chOf = (i: number) => {
@@ -455,7 +364,14 @@ function Outline({ course, index, done, onOpen }: { course: Course; index: numbe
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b hairline p-4">
-        <div className="font-semibold leading-snug">{course.title}</div>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 font-semibold leading-snug">{course.title}</div>
+          {onCollapse && (
+            <button onClick={onCollapse} aria-label="Hide the course outline" className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)]">
+              <Icon icon={SidebarLeftIcon} size={16} />
+            </button>
+          )}
+        </div>
         <div className="mt-3 flex items-center justify-between text-xs text-muted">
           <span>Progress</span>
           <span className="tabular-nums">{pct}%</span>
@@ -548,7 +464,13 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
   const [outline, setOutline] = useState(false);
   const [board, setBoard] = useState(false);
   const [wide, setWide] = useState(false);
+  const [boardTab, setBoardTab] = useState<BoardTab>('slides');
+  const [pop, setPop] = useState(0);
+  const [outlineOpen, setOutlineOpen] = useState(true);
+  const [boardOpen, setBoardOpen] = useState(true);
   const [mood, setMood] = useState<AmyMood>('calm');
+  const [file, setFile] = useState<Attachment | null>(null);
+  const { alwaysDraw, slides } = useChatSettings();
   const idRef = useRef(1);
   const liveId = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -572,10 +494,13 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
     setTries(0);
     setTool(null);
     setOutline(false);
+    setBoardTab('slides');
+    setPop(0);
     if (!c) return;
     const first = profile.name.trim().split(/\s+/)[0];
-    say({ thinking: ['Reading the lesson plan', `Pitching it for ${profile.klass || profile.stage || 'your class'}`, 'Choosing an everyday example to start with'], text: [`${first ? `Hi ${first}! ` : ''}${c.hello}`, ...c.parts[0].text], ask: c.parts[0].ask });
+    say({ thinking: ['Reading the lesson plan', `Pitching it for ${profile.klass || profile.stage || 'your class'}`, 'Choosing an everyday example to start with'], text: [`${first ? `Hi ${first}! ` : ''}${c.hello}`, ...c.parts[0].text], ask: c.parts[0].ask, slide: c.parts[0].slide });
     setAwaiting(true);
+    if (c.parts[0].table) setTimeout(showTable, 1500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course.title, index]);
 
@@ -590,14 +515,22 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
     setTimeout(() => setMood('calm'), 2200);
   };
 
+  const showTable = () => {
+    setBoardTab('table');
+    setBoardOpen(true);
+    setPop(p => p + 1);
+    if (window.innerWidth < 1024) setBoard(true);
+  };
+
   const nextPart = (lead: string[], me: string, tone?: 'right' | 'notyet') => {
     if (!c) return;
     const n = part + 1;
     if (n < c.parts.length) {
       setPart(n);
       setTries(0);
-      say({ text: [...lead, ...c.parts[n].text], ask: c.parts[n].ask, tone }, me);
+      say({ text: [...lead, ...c.parts[n].text, ...(c.parts[n].table ? [`I have put a table on the board: ${c.table.title}.`] : [])], ask: c.parts[n].ask, tone, slide: c.parts[n].slide }, me);
       setAwaiting(true);
+      if (c.parts[n].table) setTimeout(showTable, 600);
     } else {
       setAwaiting(false);
       say({ text: [...lead, 'That is the whole concept. When you feel ready, take the quiz: 7 questions, and 6 right passes it.'], tone }, me);
@@ -606,9 +539,20 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
 
   const send = (raw = input) => {
     const t = raw.trim();
-    if (!t || !liveDone) return;
+    if ((!t && !file) || !liveDone) return;
     setInput('');
     if (!c) return;
+    if (file) {
+      const f = file;
+      setFile(null);
+      say({ text: [`I can see ${f.image ? 'your photo' : 'your PDF'}, but reading it needs the tutor, which this preview is not connected to. Type your answer or question instead.`] }, t || f.name);
+      return;
+    }
+    if (/\btables?\b|tabulate|in a grid|compare (them|it|these)/i.test(t)) {
+      say({ text: [`Here is a table for this lesson on the board: ${c.table.title}.`, ...(c.table.note ? [c.table.note] : [])], ask: awaiting ? c.parts[part].ask : undefined }, t);
+      setTimeout(showTable, 400);
+      return;
+    }
     if (awaiting) {
       const p = c.parts[part];
       if (isRight(p, t)) {
@@ -627,18 +571,22 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
     say({ text: ['Questions beyond this lesson need the tutor, which this preview is not connected to. You can use the board, try the practice tools, or take the quiz.'] }, t);
   };
 
-  const composerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  };
 
   const lastAmy = [...msgs].reverse().find(m => m.from === 'amy')?.id;
   const quizOpen = msgs.some(m => m.from === 'quiz');
 
-  const outlineEl = <Outline course={course} index={index} done={done} onOpen={onOpen} />;
-  const boardEl = <Board c={c} wide={wide} onWide={() => setWide(w => !w)} onAsk={q => { setBoard(false); if (c) { const b = c.map.branches.find(x => q.endsWith(x.title.toLowerCase())); if (b && liveDone) say({ text: [`${b.title}: ${b.points.join('. ')}.`] }, q); } }} />;
+  const outlineEl = <Outline course={course} index={index} done={done} onOpen={onOpen} onCollapse={() => setOutlineOpen(false)} />;
+  const drawerOutline = <Outline course={course} index={index} done={done} onOpen={onOpen} />;
+  const askBoard = (q: string) => {
+    setBoard(false);
+    if (!c || !liveDone) return;
+    if (q === 'Explain this table') say({ text: [`This table is ${c.table.title.toLowerCase()}. It has ${c.table.rows.length} rows.`, ...(c.table.note ? [c.table.note] : [])], ask: awaiting ? c.parts[part].ask : undefined }, q);
+  };
+  const boardEl = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={wide} pop={pop} onWide={() => setWide(w => !w)} onCollapse={() => setBoardOpen(false)} onAsk={askBoard} />;
+  const drawerBoard = <Board c={c} tab={boardTab} setTab={setBoardTab} wide={false} pop={pop} onAsk={askBoard} />;
+  const pct = Math.round((Math.min(done, all.length) / all.length) * 100);
+  const right = boardOpen ? (wide ? 'minmax(0,1.4fr)' : '420px') : '56px';
+  const cols = { '--cols-lg': `minmax(0,1fr) ${right}`, '--cols-xl': `${outlineOpen ? '280px' : '56px'} minmax(0,1fr) ${right}` } as React.CSSProperties;
 
   return (
     <div className="site fixed inset-0 z-50 flex flex-col bg-[var(--bg)]">
@@ -662,8 +610,23 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
         </div>
       </header>
 
-      <div className={`grid min-h-0 flex-1 ${wide ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] xl:grid-cols-[280px_minmax(0,1fr)_minmax(0,1.4fr)]' : 'lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[280px_minmax(0,1fr)_420px]'}`}>
-        <aside className="hidden min-h-0 border-r hairline bg-[var(--bg-2)] xl:block">{outlineEl}</aside>
+      <div style={cols} className="grid min-h-0 flex-1 transition-[grid-template-columns] duration-300 lg:[grid-template-columns:var(--cols-lg)] xl:[grid-template-columns:var(--cols-xl)]">
+        <aside className="hidden min-h-0 overflow-hidden border-r hairline bg-[var(--bg-2)] xl:block">
+          {outlineOpen ? (
+            outlineEl
+          ) : (
+            <div className="flex h-full flex-col items-center gap-3 py-3">
+              <button onClick={() => setOutlineOpen(true)} aria-label="Show the course outline" className="grid size-9 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)]">
+                <Icon icon={SidebarLeftIcon} size={17} />
+              </button>
+              <div className="relative grid size-10 place-items-center" title={`${pct}% of the course done`}>
+                <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--card-2)" strokeWidth="3" /><circle cx="18" cy="18" r="15" fill="none" stroke="#ff8a3d" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(pct / 100) * 94.2} 94.2`} /></svg>
+                <span className="text-[10px] font-semibold tabular-nums">{pct}</span>
+              </div>
+              <span className="mt-1 text-xs text-muted [writing-mode:vertical-rl]">{course.title}</span>
+            </div>
+          )}
+        </aside>
 
         {/* the lesson chat */}
         <section className="flex min-h-0 flex-col">
@@ -766,7 +729,7 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
                     ) : (
                       <div key={m.id} className="flex gap-3">
                         <div className="w-8 shrink-0 pt-0.5">{m.id === lastAmy && <Amy size={32} mood={!liveDone && m.id === liveId.current ? 'thinking' : mood} glow={false} float={false} />}</div>
-                        <AmyMsg msg={m} live={m.id === liveId.current} onDone={() => setLiveDone(true)} onGrow={grow} />
+                        <AmyMsg msg={m} live={m.id === liveId.current} onDone={() => setLiveDone(true)} onGrow={grow} slides={slides && m.id === lastAmy} drawing={alwaysDraw && c && m.slide !== undefined ? c.slides[Math.min(m.slide, c.slides.length - 1)] : undefined} />
                       </div>
                     )
                   )}
@@ -789,25 +752,40 @@ export default function Lesson({ course, index, onExit, onOpen }: { course: Cour
                 </div>
               </div>
 
-              {/* composer */}
+              {/* the same chat bar as everywhere else */}
               <div className="shrink-0 px-3 pb-3 pt-1 sm:px-6">
-                <div className="mx-auto flex max-w-[720px] items-end gap-2 rounded-xl border hairline bg-[var(--card)] p-2 pl-4 shadow-[0_8px_30px_-18px_rgba(0,0,0,.5)] focus-within:border-[var(--line-2)]">
-                  <label htmlFor="lesson-input" className="sr-only">Answer Amy or ask a question</label>
-                  <textarea id="lesson-input" rows={1} value={input} onChange={e => setInput(e.target.value)} onKeyDown={composerKey} placeholder={!liveDone ? 'Amy is explaining…' : awaiting ? 'Type your answer' : 'Ask Amy about this concept'} className="max-h-40 min-w-0 flex-1 resize-none bg-transparent py-2 text-[16px] leading-6 outline-none placeholder:text-[var(--muted)]" />
-                  <button onClick={() => send()} disabled={!input.trim() || !liveDone} aria-label="Send" className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--invert)] text-[var(--on-invert)] transition-opacity disabled:opacity-25">
-                    <Icon icon={ArrowUp02Icon} size={18} stroke={2} />
-                  </button>
+                <div className="mx-auto max-w-[720px]">
+                  <Composer value={input} onChange={setInput} onSend={() => send()} busy={!liveDone} placeholder={awaiting ? 'Type your answer' : 'Ask Amy about this concept'} attachment={file} onAttach={setFile} />
+                  <div className="mt-2 flex"><SlidesToggle /></div>
                 </div>
               </div>
             </>
           )}
         </section>
 
-        <aside className="hidden min-h-0 border-l hairline bg-[var(--bg-2)] lg:block">{boardEl}</aside>
+        <aside className="hidden min-h-0 overflow-hidden border-l hairline bg-[var(--bg-2)] lg:block">
+          {boardOpen ? (
+            boardEl
+          ) : (
+            <div className="flex h-full flex-col items-center gap-1 py-3">
+              <button onClick={() => setBoardOpen(true)} aria-label="Show the board" className="mb-2 grid size-9 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)]">
+                <Icon icon={SidebarRightIcon} size={17} />
+              </button>
+              {BOARD_TABS.map(([id, label, icon]) => (
+                <span key={id} className="group/rail relative">
+                  <button onClick={() => { setBoardTab(id); setBoardOpen(true); }} aria-label={`Open ${label}`} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-amy-500">
+                    <Icon icon={icon} size={17} />
+                  </button>
+                  <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--invert)] px-2 py-1 text-xs text-[var(--on-invert)] opacity-0 transition-opacity group-hover/rail:opacity-100">{label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
 
-      <Drawer open={outline} onClose={() => setOutline(false)} side="left">{outlineEl}</Drawer>
-      <Drawer open={board} onClose={() => setBoard(false)} side="right">{boardEl}</Drawer>
+      <Drawer open={outline} onClose={() => setOutline(false)} side="left">{drawerOutline}</Drawer>
+      <Drawer open={board} onClose={() => setBoard(false)} side="right">{drawerBoard}</Drawer>
     </div>
   );
 }

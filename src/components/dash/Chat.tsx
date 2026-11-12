@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react';
-import { ArrowDown01Icon, ArrowUp02Icon, Attachment01Icon, Mic01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
+import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import Amy, { type AmyMood } from '../Amy';
 import { Icon } from '../ui';
 import { BlockView, fmt, type Block } from './ChatBlocks';
+import { Composer, SlideDeck, SlidesToggle, chunk, type Attachment } from './Composer';
+import { useChatSettings } from '../../store';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -21,14 +23,20 @@ interface Reply {
   blocks: Block[];
   check?: Check;
 }
-type Msg = { id: number; from: 'me'; text: string } | { id: number; from: 'amy'; reply: Reply; answered?: number };
+type Msg = { id: number; from: 'me'; text: string; attachment?: Attachment } | { id: number; from: 'amy'; reply: Reply; answered?: number };
 type Phase = 'thinking' | 'writing' | 'done';
 
 /**
  * Preview replies. Linear equations are really solved, checked and graphed; Newton's third law has a
  * worked explanation; anything else says plainly that the tutor isn't connected yet.
  */
-function replyFor(q: string): Reply {
+function replyFor(q: string, draw: boolean, file?: Attachment): Reply {
+  if (file)
+    return {
+      thinking: [`Opening ${file.image ? 'your photo' : 'your PDF'}: ${file.name}`, 'Reading photos and PDFs needs the tutor', 'Not connected in this preview'],
+      text: `I can see ${file.image ? 'your photo' : 'your PDF'}, but reading the question in it needs the tutor, which this preview is not connected to. Type the question out and I'll take it from there.`,
+      blocks: []
+    };
   const m = q.replace(/−/g, '-').match(/(-?\d*\.?\d*)\s*\*?\s*x\s*(?:([+-])\s*(\d+\.?\d*))?\s*=\s*(-?\d+\.?\d*)/i);
   if (m) {
     const a = m[1] === '' ? 1 : m[1] === '-' ? -1 : Number(m[1]);
@@ -49,12 +57,12 @@ function replyFor(q: string): Reply {
           done ? `x had ${done} done to it` : 'x is almost on its own already',
           'Undoing those in reverse, on both sides',
           `Checking: ${back} = ${fmt(c)}, so x = ${fmt(x)} works`,
-          'Drawing the line to show where it crosses'
+          draw ? 'Drawing the line to show where it crosses' : 'Writing out the worked steps'
         ],
         text: 'To get x on its own, undo what was done to it, one operation at a time, and do the same thing to both sides so the equation stays balanced.',
         blocks: [
           { kind: 'steps', title: 'Worked steps', lines },
-          { kind: 'graph', a, b, c }
+          ...(draw ? [{ kind: 'graph' as const, a, b, c }] : [])
         ],
         check: { q: 'Now you. Solve 2x + 3 = 11.', options: ['x = 4', 'x = 7'], right: 0, ok: '2x = 8, so x = 4.', no: 'Take 3 from both sides first to get 2x = 8, then divide by 2.' }
       };
@@ -70,66 +78,8 @@ function replyFor(q: string): Reply {
   return {
     thinking: ['Reading your question', 'Trying to reach the tutor', 'Not connected in this preview, so planning how I would teach it'],
     text: "I can't reach the tutor from this preview, so I can't answer that one properly yet. This is how I'll take it once I'm connected.",
-    blocks: [{ kind: 'map', center: q.length > 48 ? `${q.slice(0, 46)}…` : q, nodes: ['The key idea, in one step', 'A picture or a worked example', 'A quick check that it stuck'] }]
+    blocks: draw ? [{ kind: 'map', center: q.length > 48 ? `${q.slice(0, 46)}…` : q, nodes: ['The key idea, in one step', 'A picture or a worked example', 'A quick check that it stuck'] }] : []
   };
-}
-
-/* ------------------------------------------------------------------ */
-/* Composer                                                             */
-/* ------------------------------------------------------------------ */
-
-function Composer({ value, onChange, onSend, onStop, busy, onTyping }: { value: string; onChange: (v: string) => void; onSend: () => void; onStop: () => void; busy: boolean; onTyping: (t: boolean) => void }) {
-  const ta = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    const el = ta.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
-  }, [value]);
-  const key = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-  };
-  return (
-    <div className="rounded-xl border hairline bg-[var(--card)] shadow-[0_8px_30px_-18px_rgba(0,0,0,.5)] focus-within:border-[var(--line-2)] transition-colors">
-      <label htmlFor="chat-input" className="sr-only">
-        Ask Amy
-      </label>
-      <textarea
-        id="chat-input"
-        ref={ta}
-        rows={1}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={key}
-        onFocus={() => onTyping(true)}
-        onBlur={() => onTyping(false)}
-        placeholder={busy ? 'Amy is answering…' : 'Ask anything'}
-        className="block w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[16px] leading-6 outline-none placeholder:text-[var(--muted)]"
-      />
-      <div className="flex items-center gap-1 px-2 pb-2">
-        <button type="button" className="grid size-9 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)] transition-colors" aria-label="Add a photo or file">
-          <Icon icon={Attachment01Icon} size={18} />
-        </button>
-        <button type="button" className="grid size-9 place-items-center rounded-lg text-muted hover:bg-[var(--card-2)] hover:text-[var(--fg)] transition-colors" aria-label="Talk to Amy">
-          <Icon icon={Mic01Icon} size={18} />
-        </button>
-        <AnimatePresence mode="wait" initial={false}>
-          {busy ? (
-            <motion.button key="stop" type="button" onClick={onStop} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} transition={{ duration: 0.15 }} className="relative ml-auto grid size-9 place-items-center rounded-lg bg-[var(--invert)] text-[var(--on-invert)] active:scale-95" aria-label="Stop and show the whole answer">
-              <span className="size-3 rounded-[3px] bg-current" />
-            </motion.button>
-          ) : (
-            <motion.button key="send" type="button" onClick={onSend} disabled={!value.trim()} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} transition={{ duration: 0.15 }} className="ml-auto grid size-9 place-items-center rounded-lg bg-[var(--invert)] text-[var(--on-invert)] disabled:opacity-25 transition-opacity active:scale-95" aria-label="Send">
-              <Icon icon={ArrowUp02Icon} size={18} stroke={2} />
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -195,7 +145,7 @@ export function Thinking({ steps, at, live, ms }: { steps: string[]; at: number;
 const pauseAfter = (w: string) => (/[.!?]$/.test(w) ? 260 : /[,;:]$/.test(w) ? 130 : 26 + Math.min(w.length, 10) * 3);
 const BLOCK_GAP = 650;
 
-function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase }: { msg: Extract<Msg, { from: 'amy' }>; live: boolean; stop: number; onAnswer: (i: number) => void; onGrow: () => void; onPhase: (p: Phase) => void }) {
+function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase, slides }: { msg: Extract<Msg, { from: 'amy' }>; live: boolean; stop: number; onAnswer: (i: number) => void; onGrow: () => void; onPhase: (p: Phase) => void; slides: boolean }) {
   const { thinking, text, blocks, check } = msg.reply;
   const reduce = useReducedMotion();
   const words = useMemo(() => text.split(' '), [text]);
@@ -230,9 +180,15 @@ function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase }: { msg: Extract
     };
   }, [phase, step, thinking, reduce]);
 
-  // Writing: words, then each drawing in turn.
+  // Writing: words, then each drawing in turn. In slides mode the deck shows it all at once.
   useEffect(() => {
     if (phase !== 'writing') return;
+    if (slides) {
+      setN(words.length);
+      setShownBlocks(blocks.length);
+      setPhase('done');
+      return;
+    }
     if (n < words.length) {
       const t = setTimeout(() => setN(v => v + 1), reduce ? 0 : pauseAfter(words[n - 1] ?? ''));
       return () => clearTimeout(t);
@@ -243,7 +199,7 @@ function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase }: { msg: Extract
     }
     const t = setTimeout(() => setPhase('done'), blocks.length ? BLOCK_GAP : 200);
     return () => clearTimeout(t);
-  }, [phase, n, shownBlocks, words, blocks.length, reduce]);
+  }, [phase, n, shownBlocks, words, blocks.length, reduce, slides]);
 
   // Stop: finish at once.
   useEffect(() => {
@@ -271,6 +227,48 @@ function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase }: { msg: Extract
   };
 
   const writing = phase === 'writing' && n < words.length;
+
+  if (slides && phase === 'done') {
+    const deck = [
+      ...chunk([text]).map((t, i) => ({ key: `t${i}`, node: <p className="font-medium tracking-[-0.01em]">{t}</p> })),
+      ...blocks.map((b, i) => ({ key: `b${i}`, node: <div className="text-base"><BlockView block={b} /></div> })),
+      ...(check
+        ? [{
+            key: 'check',
+            node: (
+              <div className="text-base">
+                <div className="mb-1 text-sm font-medium uppercase tracking-wider text-amy-500">Your turn</div>
+                <div className="text-[22px] font-semibold leading-snug">{check.q}</div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {check.options.map((o, i) => {
+                    const reveal = msg.answered !== undefined;
+                    const right = check.right === i;
+                    const picked = msg.answered === i;
+                    return (
+                      <motion.button key={o} whileTap={{ scale: 0.97 }} animate={picked && !right ? { x: [0, -6, 6, -3, 3, 0] } : {}} disabled={reveal} onClick={() => onAnswer(i)} className={`rounded-2xl border-2 px-4 py-4 text-left text-lg font-medium transition-colors ${reveal && right ? 'border-[var(--right)] bg-[var(--right)]/10' : picked ? 'border-[var(--notyet)] bg-[var(--notyet)]/10' : 'hairline hover:border-amy-400'}`}>
+                        {o}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                {msg.answered !== undefined && (
+                  <p className="mt-4 text-lg">
+                    <span className={`font-semibold ${msg.answered === check.right ? 'text-[var(--right)]' : 'text-[var(--notyet)]'}`}>{msg.answered === check.right ? 'Right! ' : 'Not yet. '}</span>
+                    {msg.answered === check.right ? check.ok : check.no}
+                  </p>
+                )}
+              </div>
+            )
+          }]
+        : [])
+    ];
+    return (
+      <div className="min-w-0 flex-1 flex flex-col gap-4">
+        <Thinking steps={thinking} at={step} live={false} ms={ms} />
+        <SlideDeck slides={deck} deckKey={msg.id} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0 flex-1 flex flex-col gap-4">
@@ -354,13 +352,15 @@ function AmyReply({ msg, live, stop, onAnswer, onGrow, onPhase }: { msg: Extract
 /* Chat                                                                 */
 /* ------------------------------------------------------------------ */
 
-export default function Chat({ initial = '' }: { initial?: string }) {
+export default function Chat({ initial = '', initialFile }: { initial?: string; initialFile?: Attachment }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [phase, setPhase] = useState<Phase>('done');
   const [typing, setTyping] = useState(false);
   const [react, setReact] = useState<AmyMood | null>(null);
   const [stop, setStop] = useState(0);
+  const [file, setFile] = useState<Attachment | null>(null);
+  const { alwaysDraw, slides } = useChatSettings();
   const idRef = useRef(1);
   const liveId = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -368,22 +368,24 @@ export default function Chat({ initial = '' }: { initial?: string }) {
   const sentInitial = useRef(false);
   const busy = phase !== 'done';
 
-  const send = (text: string) => {
-    const t = text.trim();
+  const send = (text: string, f: Attachment | null = file) => {
+    const t = text.trim() || (f ? (f.image ? 'What is in this photo?' : 'What is in this PDF?') : '');
     if (!t || busy) return;
+    const att = f ?? undefined;
+    setFile(null);
     const me = idRef.current++;
     const id = idRef.current++;
     liveId.current = id;
     stick.current = true;
     setPhase('thinking');
-    setMsgs(m => [...m, { id: me, from: 'me', text: t }, { id, from: 'amy', reply: replyFor(t) }]);
+    setMsgs(m => [...m, { id: me, from: 'me', text: t, attachment: att }, { id, from: 'amy', reply: replyFor(t, alwaysDraw, att) }]);
     setInput('');
   };
 
   useEffect(() => {
-    if (initial && !sentInitial.current) {
+    if ((initial || initialFile) && !sentInitial.current) {
       sentInitial.current = true;
-      send(initial);
+      send(initial, initialFile ?? null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
@@ -413,8 +415,13 @@ export default function Chat({ initial = '' }: { initial?: string }) {
   const empty = msgs.length === 0;
   const lastAmy = [...msgs].reverse().find(m => m.from === 'amy')?.id;
 
-  const composer = <Composer value={input} onChange={setInput} onSend={() => send(input)} onStop={() => setStop(s => s + 1)} busy={busy} onTyping={setTyping} />;
-  const note = <p className="mt-2 text-center text-xs text-muted">Preview: try an equation like 3x + 7 = 22. Full answers arrive when the tutor is connected.</p>;
+  const composer = <Composer value={input} onChange={setInput} onSend={() => send(input)} onStop={() => setStop(s => s + 1)} busy={busy} onTyping={setTyping} attachment={file} onAttach={setFile} />;
+  const note = (
+    <div className="mx-auto mt-2 flex max-w-[760px] flex-wrap items-center justify-between gap-2">
+      <SlidesToggle />
+      <p className="text-xs text-muted">Preview: try an equation like 3x + 7 = 22.</p>
+    </div>
+  );
   const amy = (size: number) => (
     <motion.div layoutId="amy-live" transition={{ type: 'spring', stiffness: 260, damping: 28 }} style={{ width: size, height: size }}>
       <Amy size={size} mood={mood} lookAt={lookAt} follow interactive glow={size > 48} float={size > 48} />
@@ -444,12 +451,13 @@ export default function Chat({ initial = '' }: { initial?: string }) {
                 {msgs.map(m =>
                   m.from === 'me' ? (
                     <motion.div key={m.id} initial={{ opacity: 0, y: 14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 28 }} style={{ originX: 1, originY: 1 }} className="self-end max-w-[82%] rounded-2xl rounded-br-md bg-[var(--card-2)] px-4 py-2.5 text-[16px] leading-relaxed whitespace-pre-wrap">
+                      {m.attachment && (m.attachment.image ? <img src={m.attachment.url} alt="" className="mb-2 max-h-48 rounded-xl object-cover" /> : <span className="mb-1 block text-sm text-muted">PDF: {m.attachment.name}</span>)}
                       {m.text}
                     </motion.div>
                   ) : (
                     <motion.div key={m.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }} className="flex gap-3 sm:gap-4">
                       <div className="w-8 shrink-0 pt-0.5">{m.id === lastAmy && amy(32)}</div>
-                      <AmyReply msg={m} live={m.id === liveId.current} stop={stop} onAnswer={i => answer(m.id, i)} onGrow={grow} onPhase={m.id === liveId.current ? setPhase : noop} />
+                      <AmyReply msg={m} live={m.id === liveId.current} stop={stop} onAnswer={i => answer(m.id, i)} onGrow={grow} onPhase={m.id === liveId.current ? setPhase : noop} slides={slides && m.id === lastAmy} />
                     </motion.div>
                   )
                 )}

@@ -221,3 +221,13 @@ export function useProgress() {
     pass: (course: string, index: number, fallback = 0) => progressStore.set(s => ({ done: { ...s.done, [course]: Math.max(s.done[course] ?? fallback, index + 1) } }))
   };
 }
+
+/* ---------------- chat settings ---------------- */
+
+/** Always draw: a diagram with every answer. Slides: show Amy's replies one idea at a time. */
+const settingsStore = createStore<{ alwaysDraw: boolean; slides: boolean }>('amy-chat-settings', { alwaysDraw: false, slides: false });
+
+export function useChatSettings() {
+  const s = useSyncExternalStore(settingsStore.subscribe, settingsStore.get);
+  return { ...s, set: (patch: Partial<{ alwaysDraw: boolean; slides: boolean }>) => settingsStore.set(v => ({ ...v, ...patch })) };
+}

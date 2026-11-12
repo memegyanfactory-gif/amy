@@ -9,6 +9,7 @@ import { Courses } from '../components/dash/Courses';
 import { CalendarView } from '../components/dash/Planner';
 import Onboarding from '../components/dash/Onboarding';
 import Lesson from '../components/dash/Lesson';
+import type { Attachment } from '../components/dash/Composer';
 import { MY_COURSES, type Course } from '../components/dash/Courses';
 import { useRegion } from '../region';
 import { useProfile } from '../store';
@@ -108,8 +109,10 @@ export default function Dashboard() {
     window.scrollTo({ top: 0 });
   }, [view, profile.onboarded]);
 
-  const openChat = (q = '') => {
+  const [askFile, setAskFile] = useState<Attachment | undefined>();
+  const openChat = (q = '', f?: Attachment) => {
     setAsk(q);
+    setAskFile(f);
     setView('chat');
   };
 
@@ -144,7 +147,7 @@ export default function Dashboard() {
         <AnimatePresence mode="wait">
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}>
             {view === 'home' && <Home onAsk={openChat} onGo={setView} onLearn={learn} />}
-            {view === 'chat' && <Chat initial={ask} />}
+            {view === 'chat' && <Chat initial={ask} initialFile={askFile} />}
             {view === 'courses' && <Courses onLearn={learn} />}
             {view === 'calendar' && <CalendarView />}
             {view === 'practice' && <Practice />}
