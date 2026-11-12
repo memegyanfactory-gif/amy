@@ -239,3 +239,21 @@
 @utility drift {
   animation: drift 7s ease-in-out infinite;
 }
+
+/* Text with a soft light sweeping across it, for "Thinking" and the step in progress. */
+@keyframes shimmer-x {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@utility shimmer-text {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--fg) 50%, var(--muted) 60%, var(--muted) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-x 1.8s linear infinite;
+}

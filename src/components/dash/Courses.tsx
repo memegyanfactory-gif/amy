@@ -3,6 +3,8 @@ import { AnimatePresence, motion, type Variants } from 'motion/react';
 import { ArrowDown01Icon, ArrowRight02Icon, Cancel01Icon, CheckmarkCircle02Icon, Notebook01Icon, PlayIcon, PlusSignIcon, Search01Icon } from '@hugeicons/core-free-icons';
 import { art, Icon, SUBJECT_ART, SUBJECT_COLOR } from '../ui';
 import { useRegion } from '../../region';
+import { useProgress } from '../../store';
+import { LESSONS } from '../../lessons';
 
 const EASE = [0.23, 1, 0.32, 1] as const;
 
@@ -164,8 +166,10 @@ export function Folder({ course, index = 0, onOpen, compact = false }: { course:
   const { region } = useRegion();
   const c = SUBJECT_COLOR[course.subject] ?? 'var(--muted)';
   const total = concepts(course);
+  const { doneIn } = useProgress();
   const enrolled = course.done !== undefined;
-  const pct = enrolled ? Math.round((course.done! / total) * 100) : 0;
+  const doneN = enrolled ? Math.min(total, doneIn(course.title, course.done)) : 0;
+  const pct = enrolled ? Math.round((doneN / total) * 100) : 0;
   const subject = course.subject === 'Maths' ? region.math : course.subject;
   const sheets = [
     <img key="p" src={art(SUBJECT_ART[course.subject] ?? 'reading')} alt="" loading="lazy" className="h-full w-full object-cover" />,
@@ -198,7 +202,7 @@ export function Folder({ course, index = 0, onOpen, compact = false }: { course:
           <span className={`mt-1.5 line-clamp-2 font-semibold leading-snug tracking-tight ${compact ? 'text-[15px]' : 'text-lg sm:text-xl'}`}>{course.title}</span>
           <span className="mt-auto block">
             <span className="flex items-center justify-between gap-2 text-xs font-medium opacity-75">
-              <span className="truncate">{compact ? `${course.done} of ${total} done` : `${chapters(course)} ${chapters(course) === 1 ? 'chapter' : 'chapters'} · ${total} concepts`}</span>
+              <span className="truncate">{compact ? `${doneN} of ${total} done` : `${chapters(course)} ${chapters(course) === 1 ? 'chapter' : 'chapters'} · ${total} concepts`}</span>
               <span className="shrink-0 tabular-nums">{enrolled ? `${pct}%` : 'Enroll'}</span>
             </span>
             {enrolled && (
@@ -217,11 +221,12 @@ export function Folder({ course, index = 0, onOpen, compact = false }: { course:
 /* The folder, opened: chapters, each holding its concept lessons       */
 /* ------------------------------------------------------------------ */
 
-function Opened({ course, onClose }: { course: Course; onClose: () => void }) {
+function Opened({ course, onClose, onLearn }: { course: Course; onClose: () => void; onLearn?: (i: number) => void }) {
+  const { doneIn } = useProgress();
   const { region } = useRegion();
   const c = SUBJECT_COLOR[course.subject] ?? 'var(--muted)';
   const enrolled = course.done !== undefined;
-  const done = course.done ?? 0;
+  const done = enrolled ? doneIn(course.title, course.done) : 0;
   // The chapter that holds the next lesson starts open.
   const firstOpen = useMemo(() => {
     let seen = 0;
@@ -308,14 +313,14 @@ function Opened({ course, onClose }: { course: Course; onClose: () => void }) {
                           const passed = enrolled && n < done;
                           const next = enrolled && n === done;
                           return (
-                            <li key={name} className={`flex items-center gap-3 border-t hairline px-3.5 py-2.5 ${next ? 'bg-amy-400/10' : ''}`}>
+                            <li key={name} onClick={() => enrolled && n <= done && onLearn?.(n)} className={`flex items-center gap-3 border-t hairline px-3.5 py-2.5 ${next ? 'bg-amy-400/10' : ''} ${enrolled && n <= done ? 'cursor-pointer hover:bg-[var(--card-2)]' : ''}`}>
                               <span className="relative grid h-9 w-7 shrink-0 place-items-center rounded-[5px] border border-[var(--line-2)] bg-[var(--bg)]">
                                 <span aria-hidden className="absolute right-0 top-0 size-2 rounded-bl-[4px] border-b border-l border-[var(--line-2)] bg-[var(--card-2)]" />
                                 <span className="h-px w-3 bg-[var(--line-2)] shadow-[0_3px_0_var(--line-2),0_6px_0_var(--line-2)]" />
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-[15px]">{name}</span>
-                                <span className="block text-xs text-muted">15 min · {passed ? 'passed the quiz' : next ? 'up next' : 'not started'}</span>
+                                <span className="block text-xs text-muted">{LESSONS[name]?.minutes ?? 15} min · {passed ? 'passed the quiz' : next ? 'up next' : 'not started'}</span>
                               </span>
                               {passed && <Icon icon={CheckmarkCircle02Icon} size={19} className="shrink-0 text-[var(--right)]" />}
                               {next && (
@@ -344,7 +349,7 @@ function Opened({ course, onClose }: { course: Course; onClose: () => void }) {
 /* Page                                                                 */
 /* ------------------------------------------------------------------ */
 
-export function Courses() {
+export function Courses({ onLearn }: { onLearn?: (c: Course, i: number) => void }) {
   const [open, setOpen] = useState<Course | null>(null);
   const [q, setQ] = useState('');
   const [subject, setSubject] = useState('All');
@@ -413,7 +418,7 @@ export function Courses() {
         {shown.length === 0 && <p className="mt-10 text-muted">No course matches that. Try another word, or make your own course above.</p>}
       </section>
 
-      <AnimatePresence>{open && <Opened key={open.title} course={open} onClose={() => setOpen(null)} />}</AnimatePresence>
+      <AnimatePresence>{open && <Opened key={open.title} course={open} onClose={() => setOpen(null)} onLearn={i => { const c = open; setOpen(null); onLearn?.(c, i); }} />}</AnimatePresence>
     </div>
   );
 }

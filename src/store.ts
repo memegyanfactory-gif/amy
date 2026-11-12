@@ -207,3 +207,17 @@ export function parseIcs(text: string): Omit<Item, 'id'>[] {
   }
   return out;
 }
+
+/* ---------------- lesson progress ---------------- */
+
+/** Concepts passed in each course, counted from the start. Overrides the sample numbers once a quiz is passed. */
+const progressStore = createStore<{ done: Record<string, number> }>('amy-progress', { done: {} });
+
+export function useProgress() {
+  const { done } = useSyncExternalStore(progressStore.subscribe, progressStore.get);
+  return {
+    doneIn: (course: string, fallback = 0) => done[course] ?? fallback,
+    /** Mark the concept at `index` passed. Only moves forward. */
+    pass: (course: string, index: number, fallback = 0) => progressStore.set(s => ({ done: { ...s.done, [course]: Math.max(s.done[course] ?? fallback, index + 1) } }))
+  };
+}

@@ -65,7 +65,7 @@ const RECENT = [
   { icon: Mic01Icon, title: "Voice call: Newton's third law", sub: 'Physics · 6 min', when: 'Sunday' }
 ];
 
-export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onGo: (v: View) => void }) {
+export default function Home({ onAsk, onGo, onLearn }: { onAsk: (q?: string) => void; onGo: (v: View) => void; onLearn: (c: (typeof MY_COURSES)[number], i: number) => void }) {
   const [q, setQ] = useState('');
   const { theme } = useTheme();
   const { profile } = useProfile();
@@ -171,7 +171,7 @@ export default function Home({ onAsk, onGo }: { onAsk: (q?: string) => void; onG
                 </div>
               </div>
               <div className="mt-7 flex flex-wrap gap-2">
-                <button className="btn btn-primary">
+                <button className="btn btn-primary" onClick={() => onLearn(MY_COURSES[0], 4)}>
                   <Icon icon={PlayIcon} size={16} /> Continue lesson
                 </button>
                 <button className="btn btn-ghost" onClick={() => onAsk('Explain acceleration with an example')}>

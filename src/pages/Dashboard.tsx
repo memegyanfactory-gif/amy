@@ -8,6 +8,8 @@ import { Practice, Me } from '../components/dash/Other';
 import { Courses } from '../components/dash/Courses';
 import { CalendarView } from '../components/dash/Planner';
 import Onboarding from '../components/dash/Onboarding';
+import Lesson from '../components/dash/Lesson';
+import { MY_COURSES, type Course } from '../components/dash/Courses';
 import { useRegion } from '../region';
 import { useProfile } from '../store';
 import { query } from '../router';
@@ -95,6 +97,8 @@ export default function Dashboard() {
   const { profile } = useProfile();
   const [view, setView] = useState<View>(initialAsk ? 'chat' : 'home');
   const [ask, setAsk] = useState(initialAsk);
+  const [lesson, setLesson] = useState<{ course: Course; index: number } | null>(null);
+  const learn = (course: Course, index: number) => setLesson({ course, index });
 
   useEffect(() => {
     if (initialAsk) history.replaceState(null, '', '#/app');
@@ -110,6 +114,7 @@ export default function Dashboard() {
   };
 
   if (!profile.onboarded) return <Onboarding />;
+  if (lesson) return <Lesson course={lesson.course} index={lesson.index} onExit={() => { setLesson(null); setView('courses'); }} onOpen={i => setLesson({ ...lesson, index: i })} />;
 
   return (
     <div className="site min-h-dvh flex flex-col">
@@ -138,9 +143,9 @@ export default function Dashboard() {
       <main className={`flex-1 min-w-0 ${view === 'chat' ? '' : 'pb-28 md:pb-16'}`}>
         <AnimatePresence mode="wait">
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}>
-            {view === 'home' && <Home onAsk={openChat} onGo={setView} />}
+            {view === 'home' && <Home onAsk={openChat} onGo={setView} onLearn={learn} />}
             {view === 'chat' && <Chat initial={ask} />}
-            {view === 'courses' && <Courses />}
+            {view === 'courses' && <Courses onLearn={learn} />}
             {view === 'calendar' && <CalendarView />}
             {view === 'practice' && <Practice />}
             {view === 'me' && <Me />}
